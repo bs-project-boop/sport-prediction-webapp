@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from enum import Enum as PyEnum
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, JSON, Numeric, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, ForeignKey, Integer, JSON, Numeric, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -55,6 +56,14 @@ class Prediction(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class ValidationStatus(str, PyEnum):
+    BENAR = "BENAR"
+    SEBAGIAN_BENAR = "SEBAGIAN_BENAR"
+    SALAH = "SALAH"
+    NO_PICK = "NO_PICK"
+    NO_PREDICTION = "NO_PREDICTION"
+
+
 class PredictionResult(Base):
     __tablename__ = "prediction_results"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -63,9 +72,11 @@ class PredictionResult(Base):
     actual_result: Mapped[str | None] = mapped_column(Text, nullable=True)
     actual_winner: Mapped[str | None] = mapped_column(Text, nullable=True)
     actual_score: Mapped[str | None] = mapped_column(Text, nullable=True)
-    validation_status: Mapped[str | None] = mapped_column(Text, nullable=True)
-    outcome_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    score_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    validation_status: Mapped[ValidationStatus | None] = mapped_column(
+        SAEnum(ValidationStatus, name="validation_status_enum", native_enum=True,
+               values_callable=lambda enum: [member.value for member in enum]),
+        nullable=True,
+    )
     score_diff: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     accuracy_excluded: Mapped[bool] = mapped_column(Boolean, default=False)
     raw_document: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -102,4 +113,4 @@ class AuthSession(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-__all__ = ["Base", "Match", "Prediction", "PredictionResult", "IngestionAudit", "AuthSession"]
+__all__ = ["Base", "Match", "Prediction", "PredictionResult", "ValidationStatus", "IngestionAudit", "AuthSession"]

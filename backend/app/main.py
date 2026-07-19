@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Generator
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -113,7 +113,8 @@ def create_app(database_url: str | None = None, pin_hash: str | None = None, tes
         row = db.scalar(select(Prediction).where(Prediction.match_id == match_id).order_by(Prediction.updated_at.desc()))
         if not row:
             raise HTTPException(status_code=404, detail="prediction not found")
-        return {"match_id": row.match_id, "predicted_outcome": row.predicted_outcome, "predicted_score_or_result": row.predicted_score_or_result, "confidence_percent": row.confidence_percent, "confidence_breakdown": row.confidence_breakdown, "no_pick": row.no_pick, "DATA_SOURCE_DEGRADED": row.data_source_degraded, "accuracy_excluded": row.accuracy_excluded, "validation_status": row.validation_status}
+        result = db.scalar(select(PredictionResult).where(PredictionResult.match_id == match_id).order_by(PredictionResult.captured_at.desc()))
+        return {"match_id": row.match_id, "predicted_outcome": row.predicted_outcome, "predicted_score_or_result": row.predicted_score_or_result, "confidence_percent": row.confidence_percent, "confidence_breakdown": row.confidence_breakdown, "no_pick": row.no_pick, "DATA_SOURCE_DEGRADED": row.data_source_degraded, "accuracy_excluded": row.accuracy_excluded, "validation_status": result.validation_status if result else row.validation_status, "actual_result": result.actual_result if result else None, "actual_winner": result.actual_winner if result else None}
 
     @app.get("/metrics/accuracy", response_model=MetricsResponse)
     def metrics_accuracy(
@@ -124,13 +125,19 @@ def create_app(database_url: str | None = None, pin_hash: str | None = None, tes
         _: object = Depends(current_session),
     ):
         query = select(PredictionResult, Match).join(Match, Match.match_id == PredictionResult.match_id)
-        if from_date: query = query.where(Match.date_wib >= from_date)
-        if to_date: query = query.where(Match.date_wib <= to_date)
+        if from_date: query = query.where(func.date(Match.kickoff_wib) >= from_date)
+        if to_date: query = query.where(func.date(Match.kickoff_wib) <= to_date)
         if sport: query = query.where(Match.sport == sport)
         rows = db.execute(query).all()
-        valid = [result for result, _match in rows if result.outcome_correct is not None and not result.accuracy_excluded]
-        correct = sum(1 for result, _match in rows if result.outcome_correct is True and not result.accuracy_excluded)
-        return {"evaluated_count": len(valid), "correct_count": correct, "accuracy_percent": round(correct * 100 / len(valid), 2) if valid else None}
+        evaluated_statuses = {"BENAR", "SEBAGIAN_BENAR", "SALAH"}
+        excluded_statuses = {"NO_PICK", "NO_PREDICTION"}
+        statuses = [result.validation_status for result, _match in rows]
+        evaluated_count = sum(status in evaluated_statuses for status in statuses)
+        correct_count = sum(status == "BENAR" for status in statuses)
+        partial_count = sum(status == "SEBAGIAN_BENAR" for status in statuses)
+        incorrect_count = sum(status == "SALAH" for status in statuses)
+        excluded_count = sum(status in excluded_statuses for status in statuses)
+        return {"evaluated_count": evaluated_count, "correct_count": correct_count, "partial_count": partial_count, "incorrect_count": incorrect_count, "excluded_count": excluded_count, "strict_accuracy_percent": round(correct_count * 100 / evaluated_count, 2) if evaluated_count else None, "lenient_accuracy_percent": round((correct_count + partial_count) * 100 / evaluated_count, 2) if evaluated_count else None}
 
     return app, engine, SessionLocal
 

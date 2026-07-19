@@ -28,6 +28,25 @@ class IngestSummary:
     records_written: int = 0
 
 
+VALIDATION_STATUS_MAP = {
+    "BENAR": "BENAR",
+    "SEBAGIAN BENAR": "SEBAGIAN_BENAR",
+    "SALAH": "SALAH",
+    "NO_PICK": "NO_PICK",
+    "NO_PREDICTION": "NO_PREDICTION",
+}
+
+
+def map_validation_status(raw_value: str | None) -> str | None:
+    """Map the v3 top-level validation string to the database enum value."""
+    if raw_value is None:
+        return None
+    try:
+        return VALIDATION_STATUS_MAP[raw_value]
+    except KeyError as exc:
+        raise ValueError(f"Unknown validation status: {raw_value!r}") from exc
+
+
 def _key(path: Path, document_type: str, payload: bytes) -> str:
     return hashlib.sha256(f"{document_type}:{path}:{hashlib.sha256(payload).hexdigest()}".encode()).hexdigest()
 
@@ -110,28 +129,31 @@ def _normalize_state_match_id(match_id: str) -> str:
 def _ingest_state(db: Session, doc: dict):
     date_value = datetime.strptime(doc["date_wib"], "%Y-%m-%d").date()
     written = 0
+    warnings: list[str] = []
     for raw_match_id, item in (doc.get("events") or {}).items():
         match_id = _normalize_state_match_id(raw_match_id)
         if not db.scalar(select(Match).where(Match.match_id == match_id)):
             continue
-        phases = item.get("phases") or {}
-        validation = phases.get("validation") or {}
         source_id = f"{doc.get('date_wib')}:{raw_match_id}:result"
         row = db.scalar(select(PredictionResult).where(PredictionResult.source_record_id == source_id))
         if not row:
             row = PredictionResult(match_id=match_id, source_record_id=source_id)
             db.add(row)
-        row.actual_result = item.get("actual_result") or (phases.get("result") or {}).get("actual_score")
-        row.actual_winner = item.get("actual_winner") or (phases.get("result") or {}).get("winner")
+        raw_status = item.get("validation")
+        try:
+            mapped_status = map_validation_status(raw_status)
+        except ValueError as exc:
+            warnings.append(f"{raw_match_id}: {exc}")
+            mapped_status = None
+        row.actual_result = item.get("actual_result")
+        row.actual_winner = item.get("actual_winner")
         row.actual_score = row.actual_result
-        row.validation_status = item.get("validation") or item.get("validation_status")
-        row.outcome_correct = validation.get("outcome_correct")
-        row.score_correct = validation.get("score_correct")
-        row.accuracy_excluded = bool(item.get("accuracy_excluded", False))
+        row.validation_status = mapped_status
+        row.accuracy_excluded = mapped_status in {"NO_PICK", "NO_PREDICTION"} or bool(item.get("accuracy_excluded", False))
         row.raw_document = item
         written += 1
     db.commit()
-    return len(doc.get("events") or {}), written
+    return len(doc.get("events") or {}), written, warnings
 
 
 def ingest_file(db: Session, path: Path, document_type: str) -> IngestResult:
@@ -140,6 +162,7 @@ def ingest_file(db: Session, path: Path, document_type: str) -> IngestResult:
     if db.scalar(select(IngestionAudit).where(IngestionAudit.idempotency_key == key)):
         return IngestResult("already_ingested")
     try:
+        warnings: list[str] = []
         if document_type == "audit":
             records = [json.loads(line) for line in payload.decode().splitlines() if line.strip()]
             seen, written = len(records), 0
@@ -147,10 +170,12 @@ def ingest_file(db: Session, path: Path, document_type: str) -> IngestResult:
             doc = json.loads(payload)
             if document_type == "schedule": seen, written = _ingest_schedule(db, doc)
             elif document_type == "predictions": seen, written = _ingest_prediction(db, doc)
-            elif document_type == "state": seen, written = _ingest_state(db, doc)
+            elif document_type == "state": seen, written, warnings = _ingest_state(db, doc)
             else: raise ValueError(f"unsupported document type: {document_type}")
-        _audit(db, key, path, document_type, "ingested", seen, written)
-        return IngestResult("ingested", seen, written)
+        status = "warning" if warnings else "ingested"
+        message = "; ".join(warnings) if warnings else None
+        _audit(db, key, path, document_type, status, seen, written, error=message)
+        return IngestResult(status, seen, written, message)
     except Exception as exc:
         db.rollback()
         _audit(db, key, path, document_type, "error", error=str(exc))
@@ -173,6 +198,6 @@ def ingest_directory(db: Session, root: Path, date_filter: str | None = None) ->
         result = ingest_file(db, path, document_type)
         summary.files_seen += 1
         if result.status == "error": summary.errors += 1
-        elif result.status == "ingested": summary.files_ingested += 1
+        elif result.status in {"ingested", "warning"}: summary.files_ingested += 1
         summary.records_written += result.records_written
     return summary

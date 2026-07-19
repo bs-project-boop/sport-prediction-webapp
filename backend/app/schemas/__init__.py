@@ -27,9 +27,15 @@ class PredictionResponse(BaseModel):
     DATA_SOURCE_DEGRADED: bool
     accuracy_excluded: bool
     validation_status: str | None
+    actual_result: str | None
+    actual_winner: str | None
 
 
 class MetricsResponse(BaseModel):
     evaluated_count: int
     correct_count: int
-    accuracy_percent: float | None
+    partial_count: int
+    incorrect_count: int
+    excluded_count: int
+    strict_accuracy_percent: float | None
+    lenient_accuracy_percent: float | None
