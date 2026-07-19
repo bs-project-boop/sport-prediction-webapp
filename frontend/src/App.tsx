@@ -24,8 +24,7 @@ function App() {
     try {
       await login.mutateAsync(pin)
       setAuthenticated(true)
-    } catch (error) {
-      console.error('login failed', error)
+    } catch {
       setLoginError(true)
     }
   }
