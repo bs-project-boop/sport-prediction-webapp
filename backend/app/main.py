@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Generator
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -18,9 +19,16 @@ from app.models import Base, Match, Prediction, PredictionResult
 from app.schemas import MetricsResponse, PinRequest
 
 SESSION_COOKIE = "sport_session"
+DEFAULT_ALLOWED_ORIGINS = ["http://10.10.10.83:8101", "http://localhost:8101"]
 
 
-def create_app(database_url: str | None = None, pin_hash: str | None = None, testing: bool = False):
+def create_app(
+    database_url: str | None = None,
+    pin_hash: str | None = None,
+    testing: bool = False,
+    allowed_origins: list[str] | None = None,
+    secure_cookies: bool = True,
+):
     database_url = database_url or os.getenv("SPORT_PREDICTION_DATABASE_URL", "sqlite:///./sport-prediction.db")
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
     engine_kwargs = {"connect_args": connect_args, "pool_pre_ping": True}
@@ -29,6 +37,13 @@ def create_app(database_url: str | None = None, pin_hash: str | None = None, tes
     engine = create_engine(database_url, **engine_kwargs)
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     app = FastAPI(title="Sport Prediction API", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins or DEFAULT_ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+    )
     app.state.engine = engine
     app.state.SessionLocal = SessionLocal
     app.state.pin_hash = pin_hash or os.getenv("SPORT_PREDICTION_PIN_HASH")
@@ -73,7 +88,7 @@ def create_app(database_url: str | None = None, pin_hash: str | None = None, tes
             raise HTTPException(status_code=401, detail="invalid credentials")
         limiter.reset(key)
         token = app.state.sessions.create(db, key)
-        response.set_cookie(SESSION_COOKIE, token, httponly=True, secure=True, samesite="lax", max_age=3600)
+        response.set_cookie(SESSION_COOKIE, token, httponly=True, secure=secure_cookies, samesite="lax", max_age=3600)
         return {"authenticated": True}
 
     @app.post("/auth/logout")
@@ -143,4 +158,9 @@ def create_app(database_url: str | None = None, pin_hash: str | None = None, tes
 
 
 _runtime_settings = Settings()
-app, _engine, _SessionLocal = create_app(_runtime_settings.database_url, _runtime_settings.sport_prediction_pin_hash or None)
+app, _engine, _SessionLocal = create_app(
+    _runtime_settings.database_url,
+    _runtime_settings.sport_prediction_pin_hash or None,
+    allowed_origins=["http://10.10.10.83:8101", "http://localhost:8101"],
+    secure_cookies=_runtime_settings.secure_cookies,
+)

@@ -8,7 +8,8 @@ User=sportapp
 Group=sportapp
 WorkingDirectory=/opt/sport-prediction/current/backend
 EnvironmentFile=/etc/sport-prediction/app.env
-ExecStart=/opt/sport-prediction/current/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8100
+Environment=SECURE_COOKIES=false
+ExecStart=/opt/sport-prediction/current/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8100
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

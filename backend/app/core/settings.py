@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     db_user: str = "sportapp"
     db_password: str = ""
     sport_prediction_pin_hash: str = ""
+    secure_cookies: bool = True
     session_ttl_seconds: int = 3600
     rate_limit_max_failures: int = 5
     rate_limit_window_seconds: int = 300

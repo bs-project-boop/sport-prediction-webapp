@@ -105,3 +105,33 @@ def test_health_live_and_ready(tmp_path):
     client = make_client(tmp_path)
     assert client.get("/health/live").status_code == 200
     assert client.get("/health/ready").status_code == 200
+
+
+def test_direct_http_cors_and_cookie_flags(tmp_path):
+    app, engine, _session_local = create_app(
+        "sqlite://",
+        pin_hash=hash_pin("123456"),
+        testing=True,
+        allowed_origins=["http://10.10.10.83:8101", "http://localhost:8101"],
+        secure_cookies=False,
+    )
+    Base.metadata.create_all(engine)
+    client = TestClient(app, base_url="http://testserver")
+
+    preflight = client.options(
+        "/auth/pin",
+        headers={
+            "Origin": "http://10.10.10.83:8101",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == "http://10.10.10.83:8101"
+    assert preflight.headers["access-control-allow-credentials"] == "true"
+
+    login = client.post("/auth/pin", json={"pin": "123456"}, headers={"Origin": "http://10.10.10.83:8101"})
+    assert login.status_code == 200
+    cookie = login.headers["set-cookie"].lower()
+    assert "samesite=lax" in cookie
+    assert "secure" not in cookie

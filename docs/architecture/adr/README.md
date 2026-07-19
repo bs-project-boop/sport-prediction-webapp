@@ -6,6 +6,7 @@
 | ADR-002 | Session-Based Six-Digit PIN Authentication | Accepted |
 | ADR-003 | Keep the Legacy Prediction Engine Outside the Web-App Boundary | Accepted |
 | ADR-004 | Run Ingestion on Mac with Restricted PostgreSQL Access | Accepted |
+| ADR-005 | Direct LAN Ports for the Web Application | Accepted |
 
 ## Scope
 
