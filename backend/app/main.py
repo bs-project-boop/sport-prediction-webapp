@@ -13,6 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.rate_limit import RateLimiter
 from app.core.security import hash_pin, verify_pin
 from app.core.sessions import SessionStore
+from app.core.settings import Settings
 from app.models import Base, Match, Prediction, PredictionResult
 from app.schemas import MetricsResponse, PinRequest
 
@@ -134,4 +135,5 @@ def create_app(database_url: str | None = None, pin_hash: str | None = None, tes
     return app, engine, SessionLocal
 
 
-app, _engine, _SessionLocal = create_app()
+_runtime_settings = Settings()
+app, _engine, _SessionLocal = create_app(_runtime_settings.database_url, _runtime_settings.sport_prediction_pin_hash or None)
