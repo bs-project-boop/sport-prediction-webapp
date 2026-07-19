@@ -15,8 +15,8 @@ def make_client(tmp_path):
         db.add(Match(match_id="m2", date_wib=date(2026, 7, 20), sport="tennis", competition="Test", event_name="C vs D", kickoff_wib=datetime(2026, 7, 20, 11, 0), team_a="C", team_b="D"))
         db.add(Prediction(match_id="m1", source_record_id="p1", predicted_outcome="A_win", confidence_percent=72, confidence_breakdown={"form": 80}, no_pick=False, data_source_degraded=True, accuracy_excluded=False))
         db.add(Prediction(match_id="m2", source_record_id="p2", predicted_outcome="C_win", confidence_percent=35, confidence_breakdown={}, no_pick=True, data_source_degraded=False, accuracy_excluded=True))
-        db.add(PredictionResult(match_id="m1", source_record_id="r1", actual_winner="A", actual_score="2-1", outcome_correct=True, score_correct=True, accuracy_excluded=False))
-        db.add(PredictionResult(match_id="m2", source_record_id="r2", actual_winner="D", actual_score="0-2", outcome_correct=False, score_correct=False, accuracy_excluded=True))
+        db.add(PredictionResult(match_id="m1", source_record_id="r1", actual_winner="A", actual_score="2-1", validation_status="BENAR", accuracy_excluded=False))
+        db.add(PredictionResult(match_id="m2", source_record_id="r2", actual_winner="D", actual_score="0-2", validation_status="NO_PICK", accuracy_excluded=False))
         db.commit()
     return TestClient(app, base_url="https://testserver")
 
@@ -65,12 +65,40 @@ def test_prediction_details_and_metrics(tmp_path):
     assert prediction.status_code == 200
     assert prediction.json()["confidence_breakdown"] == {"form": 80}
     assert prediction.json()["DATA_SOURCE_DEGRADED"] is True
+    assert prediction.json()["validation_status"] == "BENAR"
+    assert "outcome_correct" not in prediction.json()
+    assert "score_correct" not in prediction.json()
     assert client.get("/predictions/missing").status_code == 404
     metrics = client.get("/metrics/accuracy", params={"from": "2026-07-19", "to": "2026-07-20"})
     assert metrics.status_code == 200
-    assert metrics.json()["evaluated_count"] == 1
-    assert metrics.json()["correct_count"] == 1
-    assert metrics.json()["accuracy_percent"] == 100.0
+    body = metrics.json()
+    assert body["evaluated_count"] == 1
+    assert body["correct_count"] == 1
+    assert body["partial_count"] == 0
+    assert body["incorrect_count"] == 0
+    assert body["excluded_count"] == 1
+    assert body["strict_accuracy_percent"] == 100.0
+    assert body["lenient_accuracy_percent"] == 100.0
+
+
+def test_metrics_three_category_accuracy(tmp_path):
+    client = make_client(tmp_path)
+    app = client.app
+    with app.state.SessionLocal() as db:
+        db.add(Match(match_id="m3", date_wib=date(2026, 7, 19), sport="football", competition="Test", event_name="E vs F", kickoff_wib=datetime(2026, 7, 19, 12, 0), team_a="E", team_b="F"))
+        db.add(Match(match_id="m4", date_wib=date(2026, 7, 19), sport="football", competition="Test", event_name="G vs H", kickoff_wib=datetime(2026, 7, 19, 13, 0), team_a="G", team_b="H"))
+        db.add(PredictionResult(match_id="m3", source_record_id="r3", validation_status="SEBAGIAN_BENAR"))
+        db.add(PredictionResult(match_id="m4", source_record_id="r4", validation_status="SALAH"))
+        db.commit()
+    login(client)
+    body = client.get("/metrics/accuracy", params={"from": "2026-07-19", "to": "2026-07-20"}).json()
+    assert body["evaluated_count"] == 3
+    assert body["correct_count"] == 1
+    assert body["partial_count"] == 1
+    assert body["incorrect_count"] == 1
+    assert body["excluded_count"] == 1
+    assert body["strict_accuracy_percent"] == 33.33
+    assert body["lenient_accuracy_percent"] == 66.67
 
 
 def test_health_live_and_ready(tmp_path):
