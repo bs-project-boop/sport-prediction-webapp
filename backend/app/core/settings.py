@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     rate_limit_max_failures: int = 5
     rate_limit_window_seconds: int = 300
     rate_limit_lockout_seconds: int = 300
-    model_config = SettingsConfigDict(env_file=None, extra="ignore")
+    model_config = SettingsConfigDict(env_file="/etc/sport-prediction/app.env", extra="ignore")
 
     @property
     def database_url(self) -> str:

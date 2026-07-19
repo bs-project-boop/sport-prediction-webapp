@@ -152,13 +152,19 @@ def ingest_file(db: Session, path: Path, document_type: str) -> IngestResult:
         return IngestResult("error", error_message=str(exc))
 
 
-def ingest_directory(db: Session, root: Path) -> IngestSummary:
+def ingest_directory(db: Session, root: Path, date_filter: str | None = None) -> IngestSummary:
     summary = IngestSummary()
     if not root.exists():
         return summary
-    for path in sorted(root.rglob("*.json")):
+    paths = sorted(list(root.rglob("*.json")) + list(root.rglob("*.jsonl")))
+    for path in paths:
+        if date_filter and not path.name.startswith(date_filter):
+            continue
         name = path.parent.name
-        document_type = {"schedules": "schedule", "predictions": "predictions", "state": "state"}.get(name, "predictions")
+        if path.suffix == ".jsonl" or name == "audit":
+            document_type = "audit"
+        else:
+            document_type = {"schedules": "schedule", "predictions": "predictions", "state": "state"}.get(name, "predictions")
         result = ingest_file(db, path, document_type)
         summary.files_seen += 1
         if result.status == "error": summary.errors += 1

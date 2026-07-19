@@ -15,5 +15,5 @@ if __name__ == "__main__":
     app, engine, SessionLocal = create_app(settings.database_url, settings.sport_prediction_pin_hash or None)
     with SessionLocal() as db:
         root = Path(args.root)
-        summary = ingest_directory(db, root)
+        summary = ingest_directory(db, root, args.date)
     print({"files_seen": summary.files_seen, "files_ingested": summary.files_ingested, "errors": summary.errors, "records_written": summary.records_written})
