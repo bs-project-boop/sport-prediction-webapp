@@ -103,15 +103,20 @@ def _ingest_prediction(db: Session, doc: dict):
     return len(doc.get("predictions", [])), written
 
 
+def _normalize_state_match_id(match_id: str) -> str:
+    return match_id.replace("_vs_", "_")
+
+
 def _ingest_state(db: Session, doc: dict):
     date_value = datetime.strptime(doc["date_wib"], "%Y-%m-%d").date()
     written = 0
-    for match_id, item in (doc.get("events") or {}).items():
+    for raw_match_id, item in (doc.get("events") or {}).items():
+        match_id = _normalize_state_match_id(raw_match_id)
         if not db.scalar(select(Match).where(Match.match_id == match_id)):
             continue
         phases = item.get("phases") or {}
         validation = phases.get("validation") or {}
-        source_id = f"{doc.get('date_wib')}:{match_id}:result"
+        source_id = f"{doc.get('date_wib')}:{raw_match_id}:result"
         row = db.scalar(select(PredictionResult).where(PredictionResult.source_record_id == source_id))
         if not row:
             row = PredictionResult(match_id=match_id, source_record_id=source_id)
