@@ -1,0 +1,22 @@
+[Unit]
+Description=Sport Prediction Backend API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=sportapp
+Group=sportapp
+WorkingDirectory=/opt/sport-prediction/current/backend
+EnvironmentFile=/etc/sport-prediction/app.env
+ExecStart=/opt/sport-prediction/current/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8100
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sport-prediction /var/log/sport-prediction
+PrivateTmp=true
+StandardOutput=append:/var/log/sport-prediction/backend.log
+StandardError=append:/var/log/sport-prediction/backend-error.log
+
+[Install]
+WantedBy=multi-user.target
