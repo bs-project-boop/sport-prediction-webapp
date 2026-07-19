@@ -18,7 +18,7 @@ def make_client(tmp_path):
         db.add(PredictionResult(match_id="m1", source_record_id="r1", actual_winner="A", actual_score="2-1", outcome_correct=True, score_correct=True, accuracy_excluded=False))
         db.add(PredictionResult(match_id="m2", source_record_id="r2", actual_winner="D", actual_score="0-2", outcome_correct=False, score_correct=False, accuracy_excluded=True))
         db.commit()
-    return TestClient(app)
+    return TestClient(app, base_url="https://testserver")
 
 
 def login(client):
