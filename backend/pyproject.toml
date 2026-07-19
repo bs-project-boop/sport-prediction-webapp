@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sport-prediction-backend"
+version = "0.1.0"
+description = "Read-only web application projection for Sport Prediction legacy outputs"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "alembic==1.16.4",
+  "argon2-cffi==25.1.0",
+  "fastapi==0.116.1",
+  "psycopg2-binary==2.9.10",
+  "pydantic==2.11.7",
+  "pydantic-settings==2.10.1",
+  "python-multipart==0.0.20",
+  "sqlalchemy==2.0.42",
+  "uvicorn[standard]==0.35.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
