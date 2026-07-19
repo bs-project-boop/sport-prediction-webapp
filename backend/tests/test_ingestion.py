@@ -1,7 +1,7 @@
 import json
 from datetime import date
 
-from app.models import Base, Match, Prediction
+from app.models import Base, Match, Prediction, PredictionResult
 from app.services.ingestion import ingest_file
 
 
@@ -74,3 +74,17 @@ def test_missing_directory_is_noop(tmp_path):
         summary = ingest_directory(db, tmp_path / "missing")
         assert summary.files_seen == 0
         assert summary.errors == 0
+
+
+def test_state_vs_alias_maps_to_schedule_match(tmp_path):
+    SessionLocal = make_db()
+    schedule = tmp_path / "schedule.json"
+    state = tmp_path / "state.json"
+    schedule.write_text(json.dumps({"date_wib": "2026-07-19", "events": [{**schedule_doc()["events"][0], "event_id": "m_1"}]}))
+    aliased_state = {"date_wib": "2026-07-19", "events": {"m_vs_1": {"actual_result": "2-1", "phases": {"validation": {"outcome_correct": True}}}}}
+    state.write_text(json.dumps(aliased_state))
+    with SessionLocal() as db:
+        ingest_file(db, schedule, "schedule")
+        result = ingest_file(db, state, "state")
+        assert result.records_written == 1
+        assert db.query(PredictionResult).count() == 1
