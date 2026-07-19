@@ -1,0 +1,27 @@
+# Python
+backend/venv/
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/*.egg-info/
+backend/.mypy_cache/
+*.py[cod]
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Environment and local state
+*.env
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Local export unrelated to the monorepo application
+reference/
+
+# Duplicate worktree produced by git-filter-repo; retained only in the external backup
+backend/backend/
