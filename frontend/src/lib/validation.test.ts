@@ -3,18 +3,18 @@ import { getValidationMeta, type ValidationStatus } from './validation'
 
 describe('getValidationMeta', () => {
   it.each([
-    ['BENAR', 'Correct', 'success'],
-    ['SEBAGIAN_BENAR', 'Partial', 'warning'],
-    ['SALAH', 'Incorrect', 'danger'],
+    ['BENAR', 'Benar', 'success'],
+    ['SEBAGIAN_BENAR', 'Sebagian benar', 'warning'],
+    ['SALAH', 'Salah', 'danger'],
     ['NO_PICK', 'No pick', 'muted'],
-    ['NO_PREDICTION', 'No prediction', 'subtle'],
+    ['NO_PREDICTION', 'Belum ada prediksi', 'subtle'],
   ] as const)('maps %s to an accessible label and tone', (status, label, tone) => {
     expect(getValidationMeta(status)).toMatchObject({ label, tone })
   })
 
   it('uses a safe fallback for unknown API values', () => {
     expect(getValidationMeta('FUTURE_STATUS' as ValidationStatus)).toMatchObject({
-      label: 'Unknown status',
+      label: 'Status tidak dikenali',
       tone: 'muted',
     })
   })

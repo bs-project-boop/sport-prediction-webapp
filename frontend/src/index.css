@@ -14,3 +14,49 @@
 body { margin: 0; min-width: 320px; min-height: 100vh; background: #0b1018; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
+
+/* Light theme overrides — applied via .light class on <html> */
+html.light {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border-color: rgba(148, 163, 184, 0.2);
+  --accent: #10b981;
+  --accent-bg: rgba(16, 185, 129, 0.1);
+  --danger: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.1);
+  --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.1);
+  --topbar-bg: #ffffff;
+  --topbar-border: rgba(148, 163, 184, 0.15);
+  --input-bg: #f1f5f9;
+  --input-border: rgba(148, 163, 184, 0.3);
+  --scrollbar-thumb: #cbd5e1;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Dark theme (default) */
+html.dark {
+  --bg-primary: #0b1018;
+  --bg-secondary: #111a25;
+  --bg-card: rgba(18, 27, 39, 0.8);
+  --text-primary: #dbe5ef;
+  --text-secondary: #8795a9;
+  --text-muted: #64758a;
+  --border-color: rgba(151, 170, 195, 0.14);
+  --accent: #70d6a0;
+  --accent-bg: rgba(112, 214, 160, 0.07);
+  --danger: #ec7b86;
+  --danger-bg: rgba(236, 123, 134, 0.13);
+  --warning: #f5bd64;
+  --warning-bg: rgba(245, 189, 100, 0.13);
+  --topbar-bg: rgba(11, 16, 24, 0.97);
+  --topbar-border: rgba(151, 170, 195, 0.13);
+  --input-bg: #121b27;
+  --input-border: rgba(151, 170, 195, 0.17);
+  --scrollbar-thumb: #334155;
+}

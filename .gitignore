@@ -18,6 +18,10 @@ frontend/.vite/
 .env
 .env.*
 !.env.example
+
+# Logs and screenshots
+logs/
+docs/screenshots/*.png
 .DS_Store
 
 # Local export unrelated to the monorepo application
