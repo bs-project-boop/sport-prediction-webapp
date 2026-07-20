@@ -63,15 +63,19 @@ export function Settings({ api, onPinChanged }: Props) {
     })
   }
 
-  const set = (name: FieldName, value: string) => {
+  const set = (name: FieldName, raw: string) => {
+    const value = raw.replace(/\D/g, '')
     setFields((prev) => ({ ...prev, [name]: { value, error: null } }))
     setGlobalError(null)
     if (name === 'new_pin') {
       const err = validateNewPin(value)
-      if (err) setFields((prev) => ({ ...prev, new_pin: { value, error: err } }))
-      if (prev.confirm_pin.value) {
-        const confirmErr = value !== prev.confirm_pin.value ? 'PINs do not match' : null
-        setFields((prev2) => ({ ...prev2, confirm_pin: { ...prev2.confirm_pin, error: confirmErr } }))
+      if (err) {
+        setFields((prev) => ({ ...prev, new_pin: { value, error: err } }))
+      } else {
+        setFields((prev) => {
+          const confirmErr = prev.confirm_pin.value && value !== prev.confirm_pin.value ? 'PINs do not match' : null
+          return { ...prev, confirm_pin: { ...prev.confirm_pin, error: confirmErr } }
+        })
       }
     }
     if (name === 'confirm_pin') {
@@ -121,7 +125,7 @@ export function Settings({ api, onPinChanged }: Props) {
             maxLength={6}
             placeholder="••••••"
             value={fields.current_pin.value}
-            onChange={(e) => set('current_pin', e.target.value.replace(/\D/g, ''))}
+            onChange={(e) => set('current_pin', e.target.value)}
             onBlur={() => touch('current_pin')}
             disabled={busy}
             aria-describedby={fields.current_pin.error ? 'current_pin_err' : undefined}
@@ -140,7 +144,7 @@ export function Settings({ api, onPinChanged }: Props) {
             maxLength={6}
             placeholder="••••••"
             value={fields.new_pin.value}
-            onChange={(e) => set('new_pin', e.target.value.replace(/\D/g, ''))}
+            onChange={(e) => set('new_pin', e.target.value)}
             onBlur={() => touch('new_pin')}
             disabled={busy}
             aria-describedby={fields.new_pin.error ? 'new_pin_err' : undefined}
@@ -159,7 +163,7 @@ export function Settings({ api, onPinChanged }: Props) {
             maxLength={6}
             placeholder="••••••"
             value={fields.confirm_pin.value}
-            onChange={(e) => set('confirm_pin', e.target.value.replace(/\D/g, ''))}
+            onChange={(e) => set('confirm_pin', e.target.value)}
             onBlur={() => touch('confirm_pin')}
             disabled={busy}
             aria-describedby={fields.confirm_pin.error ? 'confirm_pin_err' : undefined}
