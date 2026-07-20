@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query'
 import { ApiClient } from './lib/api'
 import { PinLogin } from './features/auth/PinLogin'
+import { Settings } from './features/auth/Settings'
 import { AccuracyChart } from './features/metrics/AccuracyChart'
 import { MetricsOverview } from './features/metrics/MetricsOverview'
 import { MatchCard } from './features/matches/MatchCard'
@@ -15,6 +16,7 @@ const DEFAULT_TO = '2026-07-19'
 function App() {
   const [authenticated, setAuthenticated] = useState(false)
   const [loginError, setLoginError] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [from, setFrom] = useState(DEFAULT_FROM)
   const [to, setTo] = useState(DEFAULT_TO)
   const [sport, setSport] = useState('all')
@@ -40,11 +42,24 @@ function App() {
 
   if (!authenticated) return <PinLogin busy={login.isPending} error={loginError ? 'invalid' : null} onSubmit={submitLogin} />
 
+  const handlePinChanged = () => {
+    setShowSettings(false)
+    void api.logout()
+    setAuthenticated(false)
+  }
+
   return <main className="app-shell">
     <header className="topbar">
       <div className="brand"><span className="brand-mark small">SP</span><span>Sport<span className="brand-accent">/</span>Intel</span></div>
-      <div className="topbar-actions"><span className="live-dot" /> Live data <button className="logout-button" type="button" onClick={() => { void api.logout(); setAuthenticated(false) }}>Lock</button></div>
+      <div className="topbar-actions">
+        <span className="live-dot" /> Live data
+        <button className="icon-button" type="button" title="Settings" onClick={() => setShowSettings((v) => !v)} aria-label="Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+        <button className="logout-button" type="button" onClick={() => { void api.logout(); setAuthenticated(false) }}>Lock</button>
+      </div>
     </header>
+    {showSettings && <Settings api={api} onPinChanged={handlePinChanged} />}
     <div className="dashboard-wrap">
       <section className="hero-row"><div><p className="eyebrow">PREDICTION DESK / 2026 SEASON</p><h1>Good evening, <span>analyst.</span></h1><p className="hero-sub">A clear view of what the model saw — and how it performed.</p></div><div className="date-chip"><span>Showing range</span><strong>{from} → {to}</strong></div></section>
       <section className="filter-bar" aria-label="Dashboard filters">

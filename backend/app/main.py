@@ -16,10 +16,34 @@ from app.core.security import hash_pin, verify_pin
 from app.core.sessions import SessionStore
 from app.core.settings import Settings
 from app.models import Base, Match, Prediction, PredictionResult
-from app.schemas import MetricsResponse, PinRequest
+from app.schemas import ChangePinRequest, MetricsResponse, PinRequest
 
 SESSION_COOKIE = "sport_session"
 DEFAULT_ALLOWED_ORIGINS = ["http://10.10.10.83:8101", "http://localhost:8101"]
+ENV_FILE = "/etc/sport-prediction/app.env"
+
+
+def _write_pin_hash_to_env(new_hash: str, env_file: str | None = None) -> None:
+    """
+    Atomically update SPORT_PREDICTION_PIN_HASH in app.env.
+
+    If env_file is None or the path does not exist (testing/local machine),
+    the write is skipped — app.state.pin_hash is updated in-memory instead.
+    """
+    if env_file is None:
+        return
+    env_path = Path(env_file)
+    if not env_path.exists():
+        return  # testing or non-server environment
+    import tempfile
+
+    line = f"SPORT_PREDICTION_PIN_HASH={new_hash}\n"
+    with tempfile.NamedTemporaryFile(
+        mode="w", dir=env_path.parent, prefix=".app.env.tmp.", suffix=".tmp", delete=False
+    ) as tmp:
+        tmp.write(line)
+        tmp_name = tmp.name
+    os.replace(tmp_name, env_path)
 
 
 def create_app(
@@ -90,6 +114,32 @@ def create_app(
         token = app.state.sessions.create(db, key)
         response.set_cookie(SESSION_COOKIE, token, httponly=True, secure=secure_cookies, samesite="lax", max_age=3600)
         return {"authenticated": True}
+
+    @app.patch("/auth/pin")
+    def change_pin(
+        payload: ChangePinRequest,
+        request: Request,
+        response: Response,
+        db: Session = Depends(db_session),
+        _session=Depends(current_session),
+    ):
+        key = request.client.host if request.client else "unknown"
+        limiter = app.state.rate_limiter
+        if not limiter.allow(key):
+            raise HTTPException(status_code=429, detail="temporarily unavailable")
+        if not verify_pin(payload.current_pin, app.state.pin_hash):
+            limiter.record_failure(key)
+            raise HTTPException(status_code=403, detail="current PIN is incorrect")
+        limiter.reset(key)
+        try:
+            new_hash = hash_pin(payload.new_pin)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="new PIN must be exactly six ASCII digits")
+        app.state.pin_hash = new_hash
+        _write_pin_hash_to_env(new_hash, ENV_FILE)
+        token = app.state.sessions.create(db, key)
+        response.set_cookie(SESSION_COOKIE, token, httponly=True, secure=secure_cookies, samesite="lax", max_age=3600)
+        return {"pin_changed": True}
 
     @app.post("/auth/logout")
     def auth_logout(request: Request, response: Response, db: Session = Depends(db_session)):

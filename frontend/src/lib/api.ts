@@ -79,6 +79,13 @@ export class ApiClient {
     return this.request<{ logged_out: boolean }>('/auth/logout', { method: 'POST' })
   }
 
+  changePin(currentPin: string, newPin: string) {
+    return this.request<{ pin_changed: boolean }>('/auth/pin', {
+      method: 'PATCH',
+      body: JSON.stringify({ current_pin: currentPin, new_pin: newPin }),
+    })
+  }
+
   getMatches(query: AccuracyQuery = {}) {
     return this.request<MatchesResponse>(`/matches?${this.toQuery(query)}`)
   }

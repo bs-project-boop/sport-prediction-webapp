@@ -5,6 +5,11 @@ class PinRequest(BaseModel):
     pin: str = Field(min_length=6, max_length=6)
 
 
+class ChangePinRequest(BaseModel):
+    current_pin: str = Field(min_length=6, max_length=6)
+    new_pin: str = Field(min_length=6, max_length=6)
+
+
 class MatchResponse(BaseModel):
     match_id: str
     date_wib: str
