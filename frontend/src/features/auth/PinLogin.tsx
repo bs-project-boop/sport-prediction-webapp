@@ -1,5 +1,5 @@
-import type { ClipboardEvent } from 'react'
-import { useState } from 'react'
+import type { ClipboardEvent, KeyboardEvent } from 'react'
+import { useRef, useState } from 'react'
 import { normalizePinInput, pastePinValue } from './pin'
 
 interface PinLoginProps {
@@ -10,11 +10,27 @@ interface PinLoginProps {
 
 export function PinLogin({ busy, error, onSubmit }: PinLoginProps) {
   const [pin, setPin] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const updatePin = (value: string) => setPin(normalizePinInput(value))
+
   const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
     event.preventDefault()
     setPin(pastePinValue(event.clipboardData.getData('text')).value)
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Backspace' && pin.length > 0) {
+      setPin((prev) => prev.slice(0, -1))
+    }
+  }
+
+  const handleBoxClick = (index: number) => {
+    inputRef.current?.focus()
+    // Move caret to clicked position
+    if (inputRef.current) {
+      inputRef.current.setSelectionRange(index, index)
+    }
   }
 
   return (
@@ -27,19 +43,32 @@ export function PinLogin({ busy, error, onSubmit }: PinLoginProps) {
         <form onSubmit={(event) => { event.preventDefault(); if (pin.length === 6) onSubmit(pin) }}>
           <label className="pin-label" htmlFor="pin-entry">Access PIN</label>
           <input
+            ref={inputRef}
             id="pin-entry"
             className="pin-entry"
+            type="password"
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={6}
             value={pin}
             onChange={(event) => updatePin(event.target.value)}
+            onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             aria-describedby={error ? 'pin-error' : 'pin-help'}
           />
-          <div className="pin-boxes" aria-hidden="true">
+          <div className="pin-boxes" role="group" aria-label="PIN entry">
             {Array.from({ length: 6 }, (_, index) => (
-              <span className={`pin-box ${pin[index] ? 'filled' : ''}`} key={index}>{pin[index] ? '•' : ''}</span>
+              <span
+                key={index}
+                className={`pin-box ${pin[index] ? 'filled' : ''}`}
+                onClick={() => handleBoxClick(index)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleBoxClick(index) }}
+                aria-label={`Digit ${index + 1}`}
+              >
+                {pin[index] ? '•' : ''}
+              </span>
             ))}
           </div>
           <p id="pin-help" className="pin-help">Six digits · Your session stays private</p>
