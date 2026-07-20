@@ -34,6 +34,6 @@ export SECURE_COOKIES=false
 cd "$PROJECT_DIR/backend"
 python -m app.workers.ingest \
     --root "$REPORTS_ROOT" \
-    --date today
+    --date "$(date +%Y-%m-%d)"
 
 log "=== Ingestion done ==="
