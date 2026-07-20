@@ -193,8 +193,10 @@ def ingest_directory(db: Session, root: Path, date_filter: str | None = None) ->
         name = path.parent.name
         if path.suffix == ".jsonl" or name == "audit":
             document_type = "audit"
+        elif name in {"schedules", "predictions", "state"}:
+            document_type = {"schedules": "schedule", "predictions": "predictions", "state": "state"}[name]
         else:
-            document_type = {"schedules": "schedule", "predictions": "predictions", "state": "state"}.get(name, "predictions")
+            continue  # skip unrelated .json files (e.g. email outbox, tmp scripts)
         result = ingest_file(db, path, document_type)
         summary.files_seen += 1
         if result.status == "error": summary.errors += 1
