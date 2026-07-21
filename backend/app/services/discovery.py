@@ -326,12 +326,13 @@ class DiscoveryService:
 
         written = 0
         for ev in unique_events:
+            ev_slug = slug_key(ev)
             match = self._upsert_match(ev, date_wib)
             if match:
                 written += 1
                 kickoff = parse_wib(ev.get("kickoff_wib"))
                 if kickoff:
-                    self._register_stage2_job(k, kickoff)
+                    self._register_stage2_job(ev_slug, kickoff)
 
         self.db.commit()
 

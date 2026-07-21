@@ -264,12 +264,25 @@ class TestDiscoveryRegistersStage2Job:
                                             mock_rg.return_value = ([], {})
                                             results = svc.run_discovery(target_date="2026-07-22")
 
+        # ESPN LEAGUE_CONFIG has 18+ entries, each fetch returns the same mock event.
+        # Different competitions / kickoffs across paths → multiple distinct slugs → multiple jobs.
         jobs = db_session.query(PipelineJob).filter_by(stage="stage2").all()
-        assert len(jobs) == 1
-        job = jobs[0]
+        assert len(jobs) >= 1
+        # Regression: each event must produce a distinct pipeline_job. The bug being
+        # guarded against was reusing the dedup-loop variable `k` outside its scope,
+        # which collapsed all registrations to the same job_id (and made second runs
+        # falsely "idempotent" — they'd skip every event).
+        job_ids = {j.job_id for j in jobs}
+        assert len(job_ids) == len(jobs), (
+            f"Duplicate pipeline_job.job_id found — registration loop is reusing "
+            f"a single slug: {sorted(job_ids)}"
+        )
+        # Find the Premier League job (sample_espn_event fixture)
+        pl_job = next((j for j in jobs if "premier_league" in j.job_id), None)
+        assert pl_job is not None, f"Premier League job not found in {[j.job_id for j in jobs[:3]]}"
         # kickoff: 2026-07-22T14:00:00Z = 2026-07-22T21:00 WIB → T-2h = 2026-07-22T19:00 WIB
         # Compare as naive UTC for SQLite compatibility
-        assert job.scheduled_time.replace(tzinfo=None) == datetime(2026, 7, 22, 19, 0)
+        assert pl_job.scheduled_time.replace(tzinfo=None) == datetime(2026, 7, 22, 19, 0)
 
 
 class TestDiscoverySkipsExistingResearchedMatch:

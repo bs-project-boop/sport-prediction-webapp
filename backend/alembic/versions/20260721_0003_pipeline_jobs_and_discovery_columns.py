@@ -54,8 +54,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_pipeline_jobs_pending",
         "pipeline_jobs",
-        ["scheduled_time"],
-        postgresql_where=sa.text("status = 'pending' AND scheduled_time <= NOW() + INTERVAL '10 minutes'"),
+        ["status", "scheduled_time"],
     )
     op.create_index("ix_pipeline_jobs_match_id", "pipeline_jobs", ["match_id"])
     op.create_index("ix_pipeline_jobs_status", "pipeline_jobs", ["status"])

@@ -1,9 +1,13 @@
 [Unit]
-Description=Run Sport Prediction Stage 1 Discovery every 10 minutes
+Description=Run Stage 1 Discovery at 00:00 WIB daily (Asia/Jakarta = UTC+7)
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=10min
+# Stage 1 Discovery is a daily batch job, not a polling loop.
+# Previous draft (OnBootSec + OnUnitActiveSec=10min) was wrong — that was
+# patterned on the ingest timer which DOES need interval polling (it tails a
+# constantly-updated report directory). Discovery has no such trigger; it
+# fetches a fixed UTC bucket window per day, so OnCalendar is correct.
+OnCalendar=*-*-* 00:00:00 Asia/Jakarta
 Persistent=true
 
 [Install]
