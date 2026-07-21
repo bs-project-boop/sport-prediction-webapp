@@ -1,0 +1,12 @@
+[Unit]
+Description=Sport Prediction — Stage 1 Discovery (ESPN + external APIs)
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=sportapp
+WorkingDirectory=/opt/sport-prediction/current/backend
+EnvironmentFile=/etc/sport-prediction/app.env
+ExecStart=/opt/sport-prediction/current/backend/venv/bin/python -m app.workers.discovery
+StandardOutput=append:/var/log/sport-prediction/discovery.log
+StandardError=append:/var/log/sport-prediction/discovery-error.log

@@ -24,6 +24,8 @@ class Match(Base):
     kickoff_wib: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     venue: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, default="scheduled")
+    competition_level: Mapped[str] = mapped_column(Text, default="senior")
+    report_label: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
     raw_document: Mapped[dict] = mapped_column(JSON, default=dict)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -49,6 +51,7 @@ class Prediction(Base):
     prediction_eligible: Mapped[bool] = mapped_column(Boolean, default=True)
     accuracy_excluded: Mapped[bool] = mapped_column(Boolean, default=False)
     validation_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pipeline_stage: Mapped[str | None] = mapped_column(Text, nullable=True)
     reasoning: Mapped[list] = mapped_column(JSON, default=list)
     evidence: Mapped[list] = mapped_column(JSON, default=list)
     raw_document: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -113,4 +116,20 @@ class AuthSession(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-__all__ = ["Base", "Match", "Prediction", "PredictionResult", "ValidationStatus", "IngestionAudit", "AuthSession"]
+class PipelineJob(Base):
+    __tablename__ = "pipeline_jobs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[str] = mapped_column(Text, unique=True)
+    stage: Mapped[str] = mapped_column(Text)
+    match_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scheduled_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(Text, default="pending")
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+__all__ = ["Base", "Match", "Prediction", "PredictionResult", "ValidationStatus", "IngestionAudit", "AuthSession", "PipelineJob"]

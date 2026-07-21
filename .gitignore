@@ -27,5 +27,8 @@ docs/screenshots/*.png
 # Local export unrelated to the monorepo application
 reference/
 
+# Local sqlite test DBs
+*.db
+
 # Duplicate worktree produced by git-filter-repo; retained only in the external backup
 backend/backend/
