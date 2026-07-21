@@ -17,7 +17,7 @@ Roadmap ini menjabarkan 8 fase implementasi untuk memigrasikan seluruh logika pr
 ## Background Architecture
 
 ### Sistem Lama
-- Engine: Python stdlib scripts di `/Users/beem/.hermes-shared/scripts/` dan `/Users/beem/sport-prediction-dev/reference/shared-scripts/`
+- Engine: Python stdlib scripts di `/Users/beem/.hermes-shared/scripts/` dan `/Users/beem/Documents/Project/Sport Predictions/sport-prediction-dev/reference/shared-scripts/`
 - Scheduling: 6 Hermes cron jobs (daily scan, prematch watcher 5m, result watcher 5m, EOD watcher 30m, 10-10 watchdog, cron health)
 - Storage: JSON files di `/Users/beem/.hermes-shared/reports/sports/v3/`
 - Ingestion: Separate service yang consume JSON → PostgreSQL

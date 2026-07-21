@@ -2,7 +2,7 @@
 
 **Prepared:** 2026-07-19 WIB
 **Phase:** Kickoff / Phase 0
-**Source:** `/Users/beem/sport-prediction-dev/reference/shared-scripts/sports_v3_engine.py` and related exported ingestion/watcher scripts
+**Source:** `/Users/beem/Documents/Project/Sport Predictions/sport-prediction-dev/reference/shared-scripts/sports_v3_engine.py` and related exported ingestion/watcher scripts
 
 ## Scope and important distinction
 

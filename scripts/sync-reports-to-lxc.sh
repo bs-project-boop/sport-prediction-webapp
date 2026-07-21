@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPORTS_ROOT="/Users/beem/.hermes-shared/reports/sports/v3"
-LOG_FILE="/Users/beem/sport-prediction-dev/logs/sync.log"
+LOG_FILE="/Users/beem/Documents/Project/Sport Predictions/sport-prediction-dev/logs/sync.log"
 
 log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] $*" ;}
 
