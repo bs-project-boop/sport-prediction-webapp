@@ -74,10 +74,12 @@
 
 /* ── Match card content ── */
 .mc-teams { font-size: .88rem; font-weight: 700; color: var(--text-primary); margin: 0 0 8px; letter-spacing: -.01em; }
+.mc-vs { color: var(--text-muted); font-weight: 400; }
 .mc-outcomes { display: flex; gap: 16px; margin-bottom: 10px; }
 .mc-outcome { display: flex; flex-direction: column; gap: 2px; }
 .mc-outcome-label { font-size: .6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
 .mc-outcome-value { font-size: .78rem; color: var(--text-secondary); font-weight: 600; }
+.mc-outcome-none { color: var(--text-muted); font-style: italic; font-weight: 400; }
 
 /* ── Expand toggle ── */
 .mc-expand { width: 100%; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); background: transparent; color: var(--text-muted); border-radius: 8px; padding: 7px 12px; font-size: .7rem; font-weight: 600; cursor: pointer; transition: all .15s; }
@@ -87,10 +89,106 @@
 
 /* ── Collapsible reasoning ── */
 .mc-reasoning { max-height: 0; overflow: hidden; opacity: 0; transition: max-height .25s ease, opacity .2s ease, padding .2s ease; padding: 0; border-top: 0px solid transparent; }
-.mc-reasoning.open { max-height: 300px; opacity: 1; padding-top: 10px; border-top: 1px solid var(--border-color); margin-top: 10px; }
+.mc-reasoning.open { max-height: 900px; opacity: 1; padding-top: 10px; border-top: 1px solid var(--border-color); margin-top: 10px; }
 .mc-reasoning-item { font-size: .72rem; color: var(--text-secondary); margin: 0 0 5px; }
 .mc-reasoning-item strong { color: var(--text-primary); }
 .mc-reasoning-placeholder { font-style: italic; color: var(--text-muted); }
+
+/* ── Detail panel ── */
+.mc-detail-section { margin-bottom: 12px; }
+.mc-detail-section:last-child { margin-bottom: 0; }
+.mc-section-label {
+  font-size: .6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+.mc-reasoning-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mc-reasoning-list li {
+  font-size: .72rem;
+  color: var(--text-secondary);
+  padding-left: 12px;
+  position: relative;
+}
+.mc-reasoning-list li::before {
+  content: '–';
+  position: absolute;
+  left: 0;
+  color: var(--text-muted);
+}
+
+/* ── Confidence bars ── */
+.mc-confidence-bars { display: flex; flex-direction: column; gap: 5px; }
+.cb-row { display: flex; align-items: center; gap: 8px; }
+.cb-label {
+  font-size: .6rem;
+  color: var(--text-muted);
+  width: 88px;
+  flex-shrink: 0;
+  text-transform: capitalize;
+}
+.cb-track {
+  flex: 1;
+  height: 5px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.cb-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width .4s ease;
+  opacity: .75;
+}
+.cb-value {
+  font-size: .6rem;
+  color: var(--text-muted);
+  width: 22px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Source badges ── */
+.mc-source-row { display: flex; align-items: center; gap: 8px; }
+.mc-source-badge {
+  display: inline-block;
+  font-size: .6rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+.mc-degraded-badge {
+  font-size: .6rem;
+  font-weight: 700;
+  color: var(--warning, #f5bd64);
+  background: rgba(245,189,100,.1);
+  border: 1px solid rgba(245,189,100,.25);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+/* ── Lesson learnt ── */
+.mc-lesson {
+  font-size: .72rem;
+  color: var(--text-secondary);
+  margin: 0;
+  font-style: italic;
+  line-height: 1.5;
+}
 
 /* ── Misc states ── */
 .mc-loading, .mc-empty { color: var(--text-muted); padding: 28px 0; font-size: .85rem; text-align: center; }

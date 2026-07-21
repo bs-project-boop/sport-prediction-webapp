@@ -179,7 +179,25 @@ def create_app(
         if not row:
             raise HTTPException(status_code=404, detail="prediction not found")
         result = db.scalar(select(PredictionResult).where(PredictionResult.match_id == match_id).order_by(PredictionResult.captured_at.desc()))
-        return {"match_id": row.match_id, "predicted_outcome": row.predicted_outcome, "predicted_score_or_result": row.predicted_score_or_result, "confidence_percent": row.confidence_percent, "confidence_breakdown": row.confidence_breakdown, "no_pick": row.no_pick, "DATA_SOURCE_DEGRADED": row.data_source_degraded, "accuracy_excluded": row.accuracy_excluded, "validation_status": result.validation_status if result else row.validation_status, "actual_result": result.actual_result if result else None, "actual_winner": result.actual_winner if result else None}
+        match_row = db.scalar(select(Match).where(Match.match_id == match_id))
+        lesson_learnt = None
+        if match_row and match_row.raw_document:
+            lesson_learnt = match_row.raw_document.get("lesson_learnt")
+        return {
+            "match_id": row.match_id,
+            "predicted_outcome": row.predicted_outcome,
+            "predicted_score_or_result": row.predicted_score_or_result,
+            "confidence_percent": row.confidence_percent,
+            "confidence_breakdown": row.confidence_breakdown,
+            "no_pick": row.no_pick,
+            "DATA_SOURCE_DEGRADED": row.data_source_degraded,
+            "accuracy_excluded": row.accuracy_excluded,
+            "validation_status": result.validation_status if result else row.validation_status,
+            "actual_result": result.actual_result if result else None,
+            "actual_winner": result.actual_winner if result else None,
+            "reasoning": row.reasoning,
+            "lesson_learnt": lesson_learnt,
+        }
 
     @app.get("/metrics/accuracy", response_model=MetricsResponse)
     def metrics_accuracy(

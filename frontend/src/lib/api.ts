@@ -25,6 +25,8 @@ export interface PredictionResponse {
   validation_status: ValidationStatus | null
   actual_result: string | null
   actual_winner: string | null
+  reasoning: string[] | null
+  lesson_learnt: string | null
 }
 export interface MetricsResponse {
   evaluated_count: number
