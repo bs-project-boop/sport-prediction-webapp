@@ -37,7 +37,7 @@ export interface MetricsResponse {
   strict_accuracy_percent: number | null
   lenient_accuracy_percent: number | null
 }
-export interface AccuracyQuery { from?: string; to?: string; sport?: string; limit?: number; offset?: number }
+export interface AccuracyQuery { from?: string; to?: string; sport?: string; search?: string; limit?: number; offset?: number }
 
 type FetchLike = typeof fetch
 const defaultFetch: FetchLike = (...args) => globalThis.fetch(...args)

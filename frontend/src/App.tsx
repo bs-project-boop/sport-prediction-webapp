@@ -6,12 +6,19 @@ import { Settings } from './features/auth/Settings'
 import { SportFilterBar } from './features/matches/SportFilterBar'
 import { KpiRow } from './features/matches/KpiRow'
 import { MatchGrid } from './features/matches/MatchGrid'
+import { SearchBox } from './features/matches/SearchBox'
 import { useTheme } from './lib/ThemeProvider'
+import { useDebounced } from './lib/useDebounced'
+import { todayWIB, shiftDate } from './lib/wibDate'
 import './App.css'
 
 const api = new ApiClient(import.meta.env.VITE_API_BASE_URL ?? '/api')
-const DEFAULT_FROM = '2026-06-29'
-const DEFAULT_TO = '2026-07-19'
+// Default range = today (WIB) ± 1 day. Server data is in WIB so we use a
+// 3-day window centered on WIB-today. Users can still pick any range they want.
+function getInitialRange(): { from: string; to: string } {
+  const today = todayWIB()
+  return { from: shiftDate(today, -1), to: shiftDate(today, 1) }
+}
 
 function SunIcon() {
   return (
@@ -37,9 +44,10 @@ function App() {
   const [authenticated, setAuthenticated] = useState(false)
   const [loginError, setLoginError] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [from, setFrom] = useState(DEFAULT_FROM)
-  const [to, setTo] = useState(DEFAULT_TO)
+  const [{ from, to }, setDateRange] = useState(getInitialRange)
   const [sport, setSport] = useState('all')
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebounced(searchInput, 300)
   const { theme, toggle } = useTheme()
 
   const login = useMutation({ mutationFn: (pin: string) => api.login(pin) })
@@ -53,7 +61,13 @@ function App() {
     }
   }
 
-  const query = { from, to, ...(sport === 'all' ? {} : { sport }) }
+  const trimmedSearch = debouncedSearch.trim()
+  const query = {
+    from,
+    to,
+    ...(sport === 'all' ? {} : { sport }),
+    ...(trimmedSearch ? { search: trimmedSearch } : {}),
+  }
   const metrics = useQuery({ queryKey: ['metrics', query], queryFn: () => api.getMetrics(query), enabled: authenticated })
   const matches = useQuery({ queryKey: ['matches', query], queryFn: () => api.getMatches({ ...query, limit: 50 }), enabled: authenticated })
   const predictionQueries = useQueries({
@@ -93,7 +107,10 @@ function App() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark small">SP</span>
-          <span>Sport<span className="brand-accent">/</span>Intel</span>
+          <div className="brand-text">
+            <span className="brand-name">Sport Intelligence</span>
+            <span className="brand-tagline">Prediksi & analisa perlawanan</span>
+          </div>
         </div>
         <div className="topbar-actions">
           <span className="live-dot" aria-label="Live data active" /> Live data
@@ -131,6 +148,14 @@ function App() {
       {showSettings && <Settings api={api} onPinChanged={handlePinChanged} />}
 
       <div className="dashboard-wrap">
+        {/* Search — debounced 300ms so we don't refetch on every keystroke */}
+        <SearchBox
+          value={searchInput}
+          onChange={setSearchInput}
+          resultCount={matches.data?.items.length}
+          totalCount={matches.data?.total}
+        />
+
         {/* Filter bar */}
         <SportFilterBar
           availableSports={availableSports}
@@ -138,8 +163,8 @@ function App() {
           from={from}
           to={to}
           onSportChange={setSport}
-          onFromChange={setFrom}
-          onToChange={setTo}
+          onFromChange={(v) => setDateRange((p) => ({ ...p, from: v }))}
+          onToChange={(v) => setDateRange((p) => ({ ...p, to: v }))}
         />
 
         {/* KPI row */}

@@ -7,7 +7,7 @@ from typing import Generator
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, func, select, text
+from sqlalchemy import create_engine, func, or_, select, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -153,6 +153,7 @@ def create_app(
         from_date: date | None = Query(default=None, alias="from"),
         to_date: date | None = Query(default=None, alias="to"),
         sport: str | None = None,
+        search: str | None = Query(default=None, description="Case-insensitive partial match on team_a, team_b, event_name, or competition. Supports individual names (e.g. driver/pilot/player) when present in those fields."),
         limit: int = Query(default=50, ge=1, le=100),
         offset: int = Query(default=0, ge=0),
         db: Session = Depends(db_session),
@@ -165,11 +166,31 @@ def create_app(
             query = query.where(Match.date_wib <= to_date)
         if sport:
             query = query.where(Match.sport == sport)
+        if search:
+            term = f"%{search.strip()}%"
+            query = query.where(
+                or_(
+                    Match.team_a.ilike(term),
+                    Match.team_b.ilike(term),
+                    Match.event_name.ilike(term),
+                    Match.competition.ilike(term),
+                )
+            )
         rows = db.scalars(query.order_by(Match.date_wib, Match.kickoff_wib).offset(offset).limit(limit)).all()
         total_query = select(Match)
         if from_date: total_query = total_query.where(Match.date_wib >= from_date)
         if to_date: total_query = total_query.where(Match.date_wib <= to_date)
         if sport: total_query = total_query.where(Match.sport == sport)
+        if search:
+            term = f"%{search.strip()}%"
+            total_query = total_query.where(
+                or_(
+                    Match.team_a.ilike(term),
+                    Match.team_b.ilike(term),
+                    Match.event_name.ilike(term),
+                    Match.competition.ilike(term),
+                )
+            )
         total = len(db.scalars(total_query).all())
         return {"items": [{"match_id": x.match_id, "date_wib": x.date_wib.isoformat(), "sport": x.sport, "competition": x.competition, "event": x.event_name, "kickoff_wib": x.kickoff_wib.isoformat() if x.kickoff_wib else None, "team_a": x.team_a, "team_b": x.team_b, "status": x.status} for x in rows], "total": total, "limit": limit, "offset": offset}
 
