@@ -36,6 +36,50 @@ VALIDATION_STATUS_MAP = {
     "NO_PREDICTION": "NO_PREDICTION",
 }
 
+# Map 12 chaotic raw status values (found in DB) to 5 canonical values.
+# Canonical: SCHEDULED, LIVE, FINISHED, POSTPONED, CANCELLED
+MATCH_STATUS_MAP = {
+    # SCHEDULED variants
+    "scheduled": "SCHEDULED",
+    "not started": "SCHEDULED",
+    "not_started": "SCHEDULED",
+    "not started yet": "SCHEDULED",
+    "init": "SCHEDULED",
+    "k": "SCHEDULED",          # "K" from result capture = Kick-off scheduled
+    "b": "SCHEDULED",          # "B" = belum mulai (not started)
+    # LIVE variants
+    "in progress": "LIVE",
+    "first half": "LIVE",
+    "half time": "LIVE",
+    "second half": "LIVE",
+    "third quarter": "LIVE",
+    "fourth quarter": "LIVE",
+    "q1": "LIVE",
+    "q2": "LIVE",
+    "q3": "LIVE",
+    "q4": "LIVE",
+    "over": "LIVE",            # basketball overtime
+    "current": "LIVE",
+    # FINISHED variants
+    "finished": "FINISHED",
+    "full time": "FINISHED",
+    "final": "FINISHED",
+    "post final": "FINISHED",
+    "final ft": "FINISHED",
+    "ft": "FINISHED",
+    "aet": "FINISHED",         # after extra time
+    "pens": "FINISHED",        # penalties
+    # POSTPONED
+    "postponed": "POSTPONED",
+    "suspended": "POSTPONED",
+    "interrupted": "POSTPONED",
+    # CANCELLED
+    "cancelled": "CANCELLED",
+    "abandoned": "CANCELLED",
+    "walkover": "CANCELLED",
+    "wo": "CANCELLED",
+}
+
 
 def map_validation_status(raw_value: str | None) -> str | None:
     """Map the v3 top-level validation string to the database enum value."""
@@ -67,6 +111,13 @@ def _audit(db: Session, key: str, path: Path, document_type: str, status: str, s
     return row
 
 
+def _normalize_match_status(raw_status: str | None) -> str:
+    if not raw_status:
+        return "SCHEDULED"  # default for unknown/missing
+    lower = str(raw_status).lower().strip()
+    return MATCH_STATUS_MAP.get(lower, "SCHEDULED")
+
+
 def _upsert_match(db: Session, item: dict, date_value):
     match_id = item.get("event_id") or item.get("match_id")
     if not match_id:
@@ -83,7 +134,7 @@ def _upsert_match(db: Session, item: dict, date_value):
     row.team_b = item.get("team_b", row.team_b)
     row.kickoff_wib = _parse_dt(item.get("kickoff_wib"))
     row.venue = item.get("venue", row.venue)
-    row.status = item.get("status", row.status or "scheduled")
+    row.status = _normalize_match_status(item.get("status"))
     row.source_metadata = item.get("data_source") or {}
     row.raw_document = item
     db.flush()

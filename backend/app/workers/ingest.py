@@ -32,7 +32,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", default="/Users/beem/.hermes-shared/reports/sports/v3")
+    parser.add_argument("--root", default="/var/lib/sport-prediction/synced-reports")
     parser.add_argument("--date", default=None)
     args = parser.parse_args()
 
