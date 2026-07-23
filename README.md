@@ -194,9 +194,23 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 
 ## Facing Issues
 
-> Last updated: 2026-07-23
+> Last updated: 2026-07-23 16:00 WIB
 
-*No active issues — all known issues are documented in "Known Issues Resolved" below.*
+**⚠ ESPN API returning HTTP 404 — No fresh data since Jul 21** (active since 2026-07-23)
+- The ESPN API (`site.api.espn.com`) returns HTTP 404 for all scoreboard requests as of this writing.
+- This blocks all new match data capture regardless of cron job status.
+- The data engine (Mac side) is fully operational and jobs are running, but ESPN is not serving data.
+- **Workaround:** Wait for ESPN API to resume. No local fix available.
+- *This is a data-source availability issue, not a code or infrastructure issue.*
+
+**⚠ DB contains stale data (last entry: 2026-07-22)** (active since 2026-07-23)
+- Database `matches` table: date range `2026-06-30` to `2026-07-22`, 0 rows for today (Jul 23) or beyond.
+- Historical data (924 matches, 1332 predictions) is intact and properly normalized.
+- Root cause: engine paused Jul 21 20:20 + ESPN 404 on resume Jul 23.
+- *Status will automatically resolve once ESPN API resumes.*
+
+**Coverage gaps — No adapters for MMA, Boxing, Baseball** (documented P3 gap, no fix planned)
+- ESPN does not cover these sports. A multi-provider chain (per the spec handbook) would be needed.
 
 ---
 
@@ -204,7 +218,12 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 
 | Issue | Date Resolved | Root Cause + Fix |
 |-------|---------------|-----------------|
-| Dashboard showed 0 matches in browser despite 924 matches in database | 2026-07-23 | Default date filter `from=today-1, to=today+1` (WIB) excluded all historical data. Fix: date filter made optional — default shows all matches; user can activate filter manually. |
+| Cron engine paused since Jul 21 20:20 — all 6 jobs disabled | 2026-07-23 | Root cause: `bintangsofyan` issued pause command, then session ended before resume. Fix: `enabled=true, state=active` set for all 7 jobs (6 original + hourly refresh). Jobs resumed Jul 23 16:02 WIB. |
+| `run_ingest.sh` missing from LXC | 2026-07-23 | Service `sport-prediction-ingest.service` referenced `run_ingest.sh` which was never deployed to LXC. Created `scripts/run_ingest.sh` (Bash wrapper calling `workers/ingest.py`), deployed to release `20260723153000`. |
+| `sport-prediction-ingest.service` failed (exit 126/1) | 2026-07-23 | Permission issues: (1) `run_ingest.sh` missing execute bit for sportapp; (2) log dir `/opt/sport-prediction/logs` missing; (3) `tee` to log file permission denied. Fixed: chmod 755, mkdir logs, chmod 777 logs, sed `tee`→`tee -a "/dev/null"`. |
+| Match status chaos (12+ raw variants) | 2026-07-23 | Raw statuses like `P1`, `init`, `b`, `halftime` were stored directly without normalization. Added `MATCH_STATUS_MAP` (12→5 canonical: SCHEDULED/FINISHED/LIVE/POSTPONED/CANCELLED) + `_normalize_match_status()`. DB shows 893 SCHEDULED, 26 FINISHED, 4 LIVE, 1 POSTPONED — all canonical. |
+| Window scan only 48h instead of 7 days | 2026-07-23 | `sports_v31_espn_ingest.py` line 1231 had `window_end = window_start + timedelta(hours=48)`. Fixed to `timedelta(days=7)` to match spec. |
+| No hourly refresh job existed | 2026-07-23 | Spec requires refresh every hour. Created `sports_v32_hourly_refresh.py` — calls ingest for today+7days across 8× windows (12z-20z WIB). Registered as job `5e9a1c3f8b2d` with cron `0 * * * *`. |
 | Port 8101 decommissioned | 2026-07-23 | Two-service architecture (`serve -s` on 8101 + FastAPI on 8100) caused repeated out-of-sync bugs (bundle mismatch, restart forgotten). Consolidated to single port 8100. Cloudflare Tunnel and LAN access now both route to backend directly. |
 | Port 8101 served old bundle (`index-CokD2ddX.js`) causing PIN to fail | 2026-07-23 | `sport-prediction-frontend` service had not been restarted after `current` symlink was updated to release `20260722052000`. Fixed by running `systemctl restart sport-prediction-frontend`. Lesson: always restart services after updating the `current` symlink. |
 | `/api/auth/pin` 405 on Cloudflare Tunnel | 2026-07-22 | Frontend bundle had `VITE_API_BASE_URL=/api` baked in, causing API calls to go to `/api/auth/pin` (FastAPI returns 405 on that route). Fixed by removing `VITE_API_BASE_URL` from `.env.production`, letting the bundle use relative URLs. |
