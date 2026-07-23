@@ -7,6 +7,8 @@ from typing import Generator
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, func, or_, select, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -19,7 +21,10 @@ from app.models import Base, Match, Prediction, PredictionResult
 from app.schemas import ChangePinRequest, MetricsResponse, PinRequest
 
 SESSION_COOKIE = "sport_session"
-DEFAULT_ALLOWED_ORIGINS = ["http://10.10.10.83:8101", "http://localhost:8101"]
+DEFAULT_ALLOWED_ORIGINS = [
+    "http://10.10.10.83:8101",
+    "https://sports.bintangsofyan.com",
+]
 ENV_FILE = "/etc/sport-prediction/app.env"
 
 
@@ -250,6 +255,29 @@ _runtime_settings = Settings()
 app, _engine, _SessionLocal = create_app(
     _runtime_settings.database_url,
     _runtime_settings.sport_prediction_pin_hash or None,
-    allowed_origins=["http://10.10.10.83:8101", "http://localhost:8101"],
+    allowed_origins=["http://10.10.10.83:8101", "http://localhost:8101", "https://sports.bintangsofyan.com"],
     secure_cookies=_runtime_settings.secure_cookies,
 )
+
+# ── Backend serves its own frontend for external/cloudflare access ────────────
+# This lets Cloudflare tunnel target ONE port (8100) for both API + frontend,
+# eliminating the need for Caddy or any other reverse proxy.
+_FRONTEND_DIST = "/opt/sport-prediction/current/frontend"
+if os.path.isdir(_FRONTEND_DIST):
+    # StaticFiles for /assets/* — no explicit Cache-Control so ETag/Last-Modified
+    # negotiation works naturally. These files have content-hash names so safe to
+    # cache long-term.
+    app.mount("/assets", StaticFiles(directory=f"{_FRONTEND_DIST}/assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # StaticFiles at /assets handles JS/CSS; this catches SPA routes
+        # (matches, settings, etc.) and serves index.html for client-side routing.
+        # index.html carries Cache-Control: no-cache so Cloudflare never caches it,
+        # preventing the stale-bundle problem from recurring on future deploys.
+        index = f"{_FRONTEND_DIST}/index.html"
+        response = FileResponse(index)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response

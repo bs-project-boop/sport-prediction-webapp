@@ -12,7 +12,27 @@ import { useDebounced } from './lib/useDebounced'
 import { todayWIB, shiftDate } from './lib/wibDate'
 import './App.css'
 
-const api = new ApiClient(import.meta.env.VITE_API_BASE_URL ?? '/api')
+function resolveApiBaseUrl(): string {
+  const host = window.location.hostname
+  // Direct LAN access via IP or localhost → backend on separate port
+  if (host === '10.10.10.83' || host === 'localhost' || host === '127.0.0.1') {
+    return 'http://10.10.10.83:8100'
+  }
+  // External/domain access → same-origin, backend FastAPI serves frontend
+  return ''
+}
+
+const api = new ApiClient(
+  (() => {
+    const envUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
+    // If env URL points to the LAN IP, override to dynamic (handles rebuilds
+    // from wrong env files). Otherwise use the env value as-is.
+    if (envUrl.includes('10.10.10.83') || envUrl === '') {
+      return resolveApiBaseUrl()
+    }
+    return envUrl
+  })(),
+)
 // Default range = today (WIB) ± 1 day. Server data is in WIB so we use a
 // 3-day window centered on WIB-today. Users can still pick any range they want.
 function getInitialRange(): { from: string; to: string } {
