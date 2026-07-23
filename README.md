@@ -6,42 +6,39 @@ Prediction desk for football, basketball, tennis, motorsport, and NFL — coveri
 
 | Service | URL | Notes |
 |---------|-----|-------|
-| LAN — Frontend (static) | http://10.10.10.83:8101 | `serve -s` static build |
-| LAN — Backend (API + SPA) | http://10.10.10.83:8100 | FastAPI + React SPA served together |
-| **External (Cloudflare Tunnel)** | https://sports.bintangsofyan.com/ | Routes to backend port 8100 |
+| **LAN + External** | http://10.10.10.83:8100 | FastAPI — single port for API + SPA |
+| **External via Cloudflare Tunnel** | https://sports.bintangsofyan.com/ | Routes to backend port 8100 |
 
 - API docs: http://10.10.10.83:8100/docs
 - PIN: 6-digit, ask the operator
+
+> ⚠️ Port 8101 (`serve -s` static frontend) was **decommissioned on 2026-07-23**. All access now goes through port 8100.
 
 ---
 
 ## Architecture
 
 ```
-Browser (LAN / Cloudflare Tunnel)
+Browser (LAN direct / Cloudflare Tunnel)
         │
         ▼
 ┌──────────────────────────────────────┐
 │  LXC 108 (Proxmox, 10.10.10.83)     │
 │                                      │
-│  ┌──────────────────────────────┐    │
-│  │ sport-prediction-backend     │    │
-│  │ FastAPI / uvicorn :8100      │    │
-│  │ Serves: API + React SPA       │    │
-│  │ Serves: /assets/* static     │    │
-│  └──────────────────────────────┘    │
-│  ┌──────────────────────────────┐    │
-│  │ sport-prediction-frontend    │    │
-│  │ serve -s dist :8101          │    │
-│  │ (LAN static-only)            │    │
-│  └──────────────────────────────┘    │
-│         │                  │         │
-│         ▼                  ▼         │
-│  ┌─────────────┐  ┌─────────────────┐ │
-│  │ PostgreSQL  │  │ sport_prediction │ │
-│  │ 127.0.0.1   │  │ 924 matches     │ │
-│  │ :5432       │  │ 1332 predictions│ │
-│  └─────────────┘  └─────────────────┘ │
+│  ┌──────────────────────────────┐   │
+│  │ sport-prediction-backend      │   │
+│  │ FastAPI / uvicorn :8100      │   │
+│  │ • Serves: REST API           │   │
+│  │ • Serves: React SPA (/)     │   │
+│  │ • CORS: sports.bintangsofyan │   │
+│  └──────────────────────────────┘   │
+│         │
+│         ▼
+│  ┌─────────────┐  ┌─────────────────┐
+│  │ PostgreSQL  │  │ sport_prediction │
+│  │ 127.0.0.1   │  │ 924 matches     │
+│  │ :5432       │  │ 1332 predictions│
+│  └─────────────┘  └─────────────────┘
 └──────────────────────────────────────┘
         │
         │ Cloudflare Tunnel (LXC 104 → host systemd)
@@ -53,8 +50,7 @@ Browser (LAN / Cloudflare Tunnel)
 
 | Port | Service | Purpose |
 |------|---------|---------|
-| 8100 | `sport-prediction-backend` | FastAPI — API + embedded SPA for external access |
-| 8101 | `sport-prediction-frontend` | `serve -s dist` — static build, LAN access only |
+| 8100 | `sport-prediction-backend` | **FastAPI — API + embedded SPA (single port for all access)** |
 
 ---
 
@@ -66,7 +62,7 @@ Browser (LAN / Cloudflare Tunnel)
 | Backend | FastAPI (Python 3.13) + SQLAlchemy + Pydantic |
 | Database | PostgreSQL (`sport_prediction`) |
 | Auth | PIN + Argon2id hash + HttpOnly session cookie |
-| Serving | `uvicorn` (8100) + `serve -s` (8101) |
+| Serving | `uvicorn` (port 8100 only) |
 | Infra | Proxmox LXC 108 |
 | Deployment | systemd units — **always use `systemctl`** |
 
@@ -113,10 +109,10 @@ sport-prediction-webapp/
 |---------|--------|-------|
 | PIN authentication | ✅ Active | 6-digit PIN, Argon2id hash |
 | Session management | ✅ Active | UUID cookie, 1-hour TTL, rate-limited |
-| Match listing + filtering | ✅ Active | Sport pills, date range, search |
+| Match listing + filtering | ✅ Active | Sport pills, date range (optional), search |
 | Prediction cards | ✅ Active | BENAR/SEBAGIAN_BENAR/SALAH badges, confidence breakdown |
 | Accuracy metrics (KPI row) | ✅ Active | Strict & lenient accuracy % |
-| Auto-date range (last 3 days) | ✅ Active | Defaults to today ± 1 day WIB |
+| Date filter | ✅ Active | Optional — defaults to no filter (shows all matches) |
 | Dark/light theme | ✅ Active | localStorage persistence |
 | Change PIN (authenticated) | ✅ Active | PATCH /auth/pin |
 | Swagger docs | ✅ Active | /docs |
@@ -142,15 +138,16 @@ npm run build      # output → dist/
 RELEASE_TS=$(date +%Y%m%d%H%M%S)
 ssh proxmox "pct exec 108 -- mkdir -p /opt/sport-prediction/releases/${RELEASE_TS}/{backend,frontend}"
 tar -C frontend/dist -cf - . | ssh proxmox "pct exec 108 -- tar -xf - -C /opt/sport-prediction/releases/${RELEASE_TS}/frontend/"
+# Copy backend from current release base
+ssh proxmox "pct exec 108 -- cp -r /opt/sport-prediction/releases/<previous_release>/backend /opt/sport-prediction/releases/${RELEASE_TS}/"
 # Update symlink
 ssh proxmox "pct exec 108 -- ln -sfn /opt/sport-prediction/releases/${RELEASE_TS} /opt/sport-prediction/current"
 ```
 
-### 3. Restart services (REQUIRED — always use systemd)
+### 3. Restart backend (REQUIRED — always use systemd)
 
 ```bash
 ssh proxmox "pct exec 108 -- systemctl restart sport-prediction-backend"
-ssh proxmox "pct exec 108 -- systemctl restart sport-prediction-frontend"
 ```
 
 ### 4. Verify
@@ -159,13 +156,13 @@ ssh proxmox "pct exec 108 -- systemctl restart sport-prediction-frontend"
 # Backend health
 curl http://10.10.10.83:8100/health/
 
-# Frontend bundle check
-curl -s http://10.10.10.83:8101/ | grep 'index-.*\.js'
-
 # Login
 curl -s -X POST http://10.10.10.83:8100/auth/pin \
   -H "Content-Type: application/json" \
   -d '{"pin":"123456"}'
+
+# Dashboard loads (no date filter)
+curl -s -b /tmp/cookies.txt http://10.10.10.83:8100/matches?limit=3
 ```
 
 > **⚠️ NEVER use `nohup`, `&`, or manual `uvicorn`/`python -m http.server`** — systemd is the only way to ensure processes restart after crashes.
@@ -174,12 +171,12 @@ curl -s -X POST http://10.10.10.83:8100/auth/pin \
 
 ## Systemd Units
 
-Both units are `enabled` (start on boot):
+The backend unit is `enabled` (starts on boot); the frontend unit is `disabled` (decommissioned 2026-07-23).
 
-| Unit | WorkingDirectory | ExecStart |
-|------|----------------|-----------|
-| `sport-prediction-backend.service` | `/opt/sport-prediction/current/backend` | `.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8100` |
-| `sport-prediction-frontend.service` | `/opt/sport-prediction/current/frontend` | `/usr/local/bin/serve -s . -l 8101` |
+| Unit | Status | WorkingDirectory | ExecStart |
+|------|--------|----------------|-----------|
+| `sport-prediction-backend.service` | **enabled** | `/opt/sport-prediction/current/backend` | `.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8100` |
+| `sport-prediction-frontend.service` | **disabled** | — | Decommissioned 2026-07-23 — all access via 8100 |
 
 ---
 
@@ -191,7 +188,7 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 |----------|-------------|
 | `SPORT_PREDICTION_PIN_HASH` | Argon2id hash of current PIN |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection |
-| `SECURE_COOKIES` | Set `false` for HTTP-only access; `true` (default) requires HTTPS |
+| `SECURE_COOKIES` | Set `false` for HTTP-only access; `true` requires HTTPS |
 
 ---
 
@@ -199,18 +196,30 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 
 > Last updated: 2026-07-23
 
-- **Dashboard shows 0 matches in browser** — Default date filter `from=today-1, to=today+1` (WIB timezone) does not capture historical matches (FIFA World Cup 2026, IBL, MotoGP are all in the past). The `/matches?from=...&to=...` query returns empty even though 924 matches exist in the database. Fix in progress: extend default date range or adjust filter behavior.
-
-- **`secure_cookies=True` hardcoded as default** — FastAPI backend has `secure_cookies: bool = True` hardcoded in `main.py:59` with no environment variable override. This prevents session cookies from being stored when accessing via HTTP (LAN). Currently works around it because `secure_cookies=False` is implicitly used when `SPORT_PREDICTION_SECURE_COOKIES` env var is not set, but the code needs a proper env-var-driven setting.
+*No active issues — all known issues are documented in "Known Issues Resolved" below.*
 
 ---
 
 ## Known Issues Resolved
 
-| Issue | Date Resolved | Notes |
-|-------|---------------|-------|
-| Port 8101 served old bundle (`index-CokD2ddX.js` instead of `index-BSsGzJEe.js`) causing PIN to fail on LAN access | 2026-07-23 | `sport-prediction-frontend` service had not been restarted after `current` symlink was updated to release `20260722052000`. Fixed by running `systemctl restart sport-prediction-frontend`. Lesson: always restart services after updating the `current` symlink. |
+| Issue | Date Resolved | Root Cause + Fix |
+|-------|---------------|-----------------|
+| Dashboard showed 0 matches in browser despite 924 matches in database | 2026-07-23 | Default date filter `from=today-1, to=today+1` (WIB) excluded all historical data. Fix: date filter made optional — default shows all matches; user can activate filter manually. |
+| Port 8101 decommissioned | 2026-07-23 | Two-service architecture (`serve -s` on 8101 + FastAPI on 8100) caused repeated out-of-sync bugs (bundle mismatch, restart forgotten). Consolidated to single port 8100. Cloudflare Tunnel and LAN access now both route to backend directly. |
+| Port 8101 served old bundle (`index-CokD2ddX.js`) causing PIN to fail | 2026-07-23 | `sport-prediction-frontend` service had not been restarted after `current` symlink was updated to release `20260722052000`. Fixed by running `systemctl restart sport-prediction-frontend`. Lesson: always restart services after updating the `current` symlink. |
 | `/api/auth/pin` 405 on Cloudflare Tunnel | 2026-07-22 | Frontend bundle had `VITE_API_BASE_URL=/api` baked in, causing API calls to go to `/api/auth/pin` (FastAPI returns 405 on that route). Fixed by removing `VITE_API_BASE_URL` from `.env.production`, letting the bundle use relative URLs. |
 | Cache busting — old JS bundle served after deploy | 2026-07-22 | Cloudflare was caching `index-*.js` assets indefinitely. Fixed by adding Cache Rule to bypass cache on root `/` and setting `Cache-Control: no-cache` on `index.html` via FastAPI response header. |
 | `sport_prediction` database not found | 2026-07-22 | Database name uses underscores (`sport_prediction`), not dashes. Correct `DATABASE_URL` in env. |
 | Caddy reverse proxy rejected by user | 2026-07-21 | User explicitly does not want Caddy. Architecture switched to Cloudflare Tunnel only with FastAPI serving SPA directly. |
+
+---
+
+## Git Commit Conventions
+
+- Format: `git commit -m "scope: short description (#ticket)"`
+- **WAJIB** — setiap push ke `main` harus update bagian "Facing Issues" di README.md
+- **WAJIB** — test files (`test_*.py`, `test-*.js`) harus di-clean sebelum commit
+- **CEK SEKURITI** sebelum push — tidak ada secret/password/PIN di git history:
+  ```bash
+  git log --all -p | grep -iE "password|secret|api[_-]?key|pin.*=.*[0-9]{6}" | head -20
+  ```

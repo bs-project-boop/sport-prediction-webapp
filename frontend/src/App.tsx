@@ -9,7 +9,6 @@ import { MatchGrid } from './features/matches/MatchGrid'
 import { SearchBox } from './features/matches/SearchBox'
 import { useTheme } from './lib/ThemeProvider'
 import { useDebounced } from './lib/useDebounced'
-import { todayWIB, shiftDate } from './lib/wibDate'
 import './App.css'
 
 function resolveApiBaseUrl(): string {
@@ -33,11 +32,10 @@ const api = new ApiClient(
     return envUrl
   })(),
 )
-// Default range = today (WIB) ± 1 day. Server data is in WIB so we use a
-// 3-day window centered on WIB-today. Users can still pick any range they want.
+// Default: no date filter. Show all matches on initial load.
+// User can optionally enable a date range via the date picker.
 function getInitialRange(): { from: string; to: string } {
-  const today = todayWIB()
-  return { from: shiftDate(today, -1), to: shiftDate(today, 1) }
+  return { from: '', to: '' }
 }
 
 function SunIcon() {
@@ -83,8 +81,8 @@ function App() {
 
   const trimmedSearch = debouncedSearch.trim()
   const query = {
-    from,
-    to,
+    ...(from ? { from } : {}),
+    ...(to ? { to } : {}),
     ...(sport === 'all' ? {} : { sport }),
     ...(trimmedSearch ? { search: trimmedSearch } : {}),
   }

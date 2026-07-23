@@ -22,7 +22,6 @@ from app.schemas import ChangePinRequest, MetricsResponse, PinRequest
 
 SESSION_COOKIE = "sport_session"
 DEFAULT_ALLOWED_ORIGINS = [
-    "http://10.10.10.83:8101",
     "https://sports.bintangsofyan.com",
 ]
 ENV_FILE = "/etc/sport-prediction/app.env"
@@ -255,7 +254,7 @@ _runtime_settings = Settings()
 app, _engine, _SessionLocal = create_app(
     _runtime_settings.database_url,
     _runtime_settings.sport_prediction_pin_hash or None,
-    allowed_origins=["http://10.10.10.83:8101", "http://localhost:8101", "https://sports.bintangsofyan.com"],
+    allowed_origins=["https://sports.bintangsofyan.com"],
     secure_cookies=_runtime_settings.secure_cookies,
 )
 

@@ -184,7 +184,7 @@ def test_direct_http_cors_and_cookie_flags(tmp_path):
         "sqlite://",
         pin_hash=hash_pin("123456"),
         testing=True,
-        allowed_origins=["http://10.10.10.83:8101", "http://localhost:8101"],
+        allowed_origins=["http://10.10.10.83:8100", "http://localhost:8100"],
         secure_cookies=False,
     )
     Base.metadata.create_all(engine)
@@ -193,16 +193,16 @@ def test_direct_http_cors_and_cookie_flags(tmp_path):
     preflight = client.options(
         "/auth/pin",
         headers={
-            "Origin": "http://10.10.10.83:8101",
+            "Origin": "http://10.10.10.83:8100",
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "content-type",
         },
     )
     assert preflight.status_code == 200
-    assert preflight.headers["access-control-allow-origin"] == "http://10.10.10.83:8101"
+    assert preflight.headers["access-control-allow-origin"] == "http://10.10.10.83:8100"
     assert preflight.headers["access-control-allow-credentials"] == "true"
 
-    login = client.post("/auth/pin", json={"pin": "123456"}, headers={"Origin": "http://10.10.10.83:8101"})
+    login = client.post("/auth/pin", json={"pin": "123456"}, headers={"Origin": "http://10.10.10.83:8100"})
     assert login.status_code == 200
     cookie = login.headers["set-cookie"].lower()
     assert "samesite=lax" in cookie
