@@ -285,18 +285,22 @@ def render_text(alerts: list[dict], fp: str) -> str:
 
 
 def send_discord(text: str, fp: str) -> dict:
+    import shutil
     DISCORD_OUTBOX.mkdir(parents=True, exist_ok=True)
-    path = DISCORD_OUTBOX / f"cron-failure-alert-{fp}.txt"
-    path.write_text(text)
+    local_path = DISCORD_OUTBOX / f"cron-failure-alert-{fp}.txt"
+    local_path.write_text(text)
+    if shutil.which("hermes") is None:
+        # hermes CLI not available (LXC host) — write to outbox only, skip delivery
+        return {"sent": False, "exit_code": -1, "output": "hermes not found — saved to outbox only", "file": str(local_path)}
     proc = subprocess.run(
-        ["hermes", "send", "--quiet", "--to", DISCORD_TARGET, "--file", str(path)],
+        ["hermes", "send", "--quiet", "--to", DISCORD_TARGET, "--file", str(local_path)],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         timeout=60,
         env={"HOME": "/Users/beem", **os.environ},
     )
-    return {"sent": proc.returncode == 0, "exit_code": proc.returncode, "output": (proc.stdout or "")[-500:], "file": str(path)}
+    return {"sent": proc.returncode == 0, "exit_code": proc.returncode, "output": (proc.stdout or "")[-500:], "file": str(local_path)}
 
 
 def send_email(text: str, fp: str) -> dict:
