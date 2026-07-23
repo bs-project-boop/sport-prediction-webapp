@@ -1,0 +1,383 @@
+{
+  "jobs": [
+    {
+      "id": "48906a76b5f2",
+      "name": "sport-scanning-v3.2-daily-step1-3-scan-research-report",
+      "prompt": "You are the sports profile Sport Scanning AI v3.2 daily operator. Run Steps 1-3 for the current WIB date. Do not create or modify cron jobs from this cron run.\n\nHard requirements:\n- Timezone WIB. Use `TZ=Asia/Jakarta date` first.\n- Use ESPN API for structured fixture discovery and SearXNG as primary research source. If SearXNG evidence is insufficient, follow the v3.2 data-source fallback chain concept (xurl/blogwatcher/youtube-content/llm-wiki when available), mark `DATA_SOURCE_DEGRADED=true`, and apply -15 confidence penalty.\n- Destination: Discord channel `1515327116189630526` via `hermes send --to discord:1515327116189630526`; email `bntng.sfyn@gmail.com` via Himalaya/sports_v3_engine.py.\n- Store artifacts under `/Users/beem/.hermes-shared/reports/sports/v3/` and daily summary `/Users/beem/.hermes-shared/reports/sports/sports-daily.md`.\n- Never provide betting advice.\n\nReport contract for `/Users/beem/.hermes-shared/reports/sports/sports-daily.md`:\n- Must include `## Validation Probe` section with raw validate output (every line: OK=, WARN:, ERROR:).\n- Must include `## Improvement Loop` with 1-3 bullets, or `None this run.`\n- Must include `## Action Required` with checklist items or `None`.\n- No markdown tables; use bullets only.\n\nv3.2 methodology:\n- For every prediction, compute confidence via the canonical weighted factors: form, h2h, player_condition, home_away, market_odds, contextual. Store `confidence_breakdown`, `confidence_weights`, `confidence_percent`, `confidence_label`, and `confidence_model_version: v3.2`.\n- If calculated confidence < 40, set `predicted_outcome=NO_PICK`, `no_pick=true`, and do not force a winner.\n- Include `data_source` metadata and `DATA_SOURCE_DEGRADED` flag in every prediction.\n- Validate with `/Users/beem/.hermes-shared/scripts/sports_v3_engine.py validate --date $(TZ=Asia/Jakarta date +%F)`. After running, append the FULL raw output (every OK=/WARN:/ERROR: line) to `sports-daily.md` under a `## Validation Probe` section. Do not truncate or summarize \u2014 paste the raw output verbatim.\n\nProcedure:\n1) Run `python3 /Users/beem/.hermes-shared/scripts/sports_v31_espn_ingest.py --date $(TZ=Asia/Jakarta date +%F)`. This creates/updates schedule + prediction stubs while preserving already researched predictions and attaches multi-source SearXNG evidence.\n2) For every event in `predictions/<today>.json` where `researched=false` or `stub=true`, deep research via SearXNG/multi-source evidence: recent form, H2H, lineup/injury, venue/weather, motivation/context, market/odds signal if available. Fill prediction fields plus v3.2 confidence_breakdown. If evidence insufficient, mark degraded and lower confidence.\n3) Run `python3 /Users/beem/.hermes-shared/scripts/sports_v3_engine.py init --date <today>`.\n4) Build a Discord 48H report per v3.2 Step 3 (confidence labels, NO_PICK, degraded warnings) and send it using `hermes send --to discord:1515327116189630526`.\n5) Run `python3 /Users/beem/.hermes-shared/scripts/sports_v3_engine.py send-initial --date <today>` to send HTML email. Respect dedupe.\n6) Store compact summaries to Mnemosyne: daily schedule summary, prediction summary, and durable methodology lessons. Do not store raw dumps.\n7) Validate with `python3 /Users/beem/.hermes-shared/scripts/sports_v3_engine.py validate --date <today>` and report errors if any.\n\nReturn a concise run summary or `[SILENT]` only if no report/action was due.",
+      "skills": [
+        "sports-prediction",
+        "sports-automation-production",
+        "sports-result-capture"
+      ],
+      "skill": "sports-prediction",
+      "model": "minimax-m2.7",
+      "provider": "minimax-oauth",
+      "base_url": null,
+      "script": "v32_daily_quota_safe_fallback.py",
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "1 0 * * *",
+        "display": "1 0 * * *"
+      },
+      "schedule_display": "1 0 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 26
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-29T14:07:39.290542+07:00",
+      "next_run_at": "2026-07-24T00:01:00+07:00",
+      "last_run_at": "2026-07-23T16:32:22.854081+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "discord",
+        "chat_id": "1519928037687164928",
+        "chat_name": "binglab\u2019s server / #predictions / Reports Improvements",
+        "thread_id": "1519928037687164928",
+        "user_id": "357551371995709440"
+      },
+      "enabled_toolsets": null,
+      "workdir": null,
+      "fire_claim": null,
+      "cleared_at": "2026-07-07T14:01:00+07:00",
+      "cleared_reason": "Pre-rotation HTTP 429 errors stale after Option 1 rotation; will re-evaluate on next cron fire",
+      "_old_provider_snapshot": "minimax-oauth",
+      "_old_model_snapshot": "MiniMax-M2.7",
+      "snapshot_stripped_at": "2026-07-07T14:05:00+07:00",
+      "snapshot_strip_reason": "Intentional Option 1 rotation; snapshots no longer reflect current intent"
+    },
+    {
+      "id": "fd5e4a395476",
+      "name": "sport-scanning-v3.2-prematch-h1-monitor",
+      "prompt": "script-only v3.2 prematch watcher; silent when no due events",
+      "skills": [
+        "sports-prediction",
+        "sports-result-capture",
+        "sports-automation-production"
+      ],
+      "skill": "sports-prediction",
+      "model": "minimax-m2.7",
+      "provider": "minimax-oauth",
+      "base_url": null,
+      "script": "v31_prematch_noagent.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 6390
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-29T18:10:36.733378+07:00",
+      "next_run_at": "2026-07-23T18:15:00+07:00",
+      "last_run_at": "2026-07-23T18:10:15.197078+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "discord",
+        "chat_id": "1519928037687164928",
+        "chat_name": "binglab\u2019s server / #predictions / Reports Improvements",
+        "thread_id": "1519928037687164928",
+        "user_id": "357551371995709440"
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "web"
+      ],
+      "workdir": null,
+      "fire_claim": null,
+      "_old_provider_snapshot": "openai-codex",
+      "_old_model_snapshot": "gpt-5.5",
+      "snapshot_stripped_at": "2026-07-07T14:05:00+07:00",
+      "snapshot_strip_reason": "Intentional Option 1 rotation; snapshots no longer reflect current intent",
+      "provider_snapshot": "minimax-oauth",
+      "model_snapshot": "minimax-m2.7"
+    },
+    {
+      "id": "52784f562896",
+      "name": "sport-scanning-v3.2-result-capture-5m",
+      "prompt": "script-only v3.2 result capture watcher; silent when no due events",
+      "skills": [
+        "sports-prediction",
+        "sports-result-capture",
+        "sports-automation-production"
+      ],
+      "skill": "sports-prediction",
+      "model": "minimax-m2.7",
+      "provider": "minimax-oauth",
+      "base_url": null,
+      "script": "v31_results_noagent.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 6390
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-29T18:10:37.916248+07:00",
+      "next_run_at": "2026-07-23T18:15:00+07:00",
+      "last_run_at": "2026-07-23T18:10:12.302375+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "discord",
+        "chat_id": "1519928037687164928",
+        "chat_name": "binglab\u2019s server / #predictions / Reports Improvements",
+        "thread_id": "1519928037687164928",
+        "user_id": "357551371995709440"
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "web"
+      ],
+      "workdir": null,
+      "fire_claim": null,
+      "_old_provider_snapshot": "openai-codex",
+      "_old_model_snapshot": "gpt-5.5",
+      "snapshot_stripped_at": "2026-07-07T14:05:00+07:00",
+      "snapshot_strip_reason": "Intentional Option 1 rotation; snapshots no longer reflect current intent",
+      "provider_snapshot": "minimax-oauth",
+      "model_snapshot": "minimax-m2.7"
+    },
+    {
+      "id": "67700dd8f992",
+      "name": "sport-scanning-v3.2-eod-summary-ml",
+      "prompt": "script-only v3.2 EOD watcher with guard; silent when not ready",
+      "skills": [
+        "sports-prediction",
+        "sports-automation-production"
+      ],
+      "skill": "sports-prediction",
+      "model": "minimax-m2.7",
+      "provider": "minimax-oauth",
+      "base_url": null,
+      "script": "v31_eod_noagent.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/30 * * * *",
+        "display": "*/30 * * * *"
+      },
+      "schedule_display": "*/30 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 1066
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-29T18:10:39.111696+07:00",
+      "next_run_at": "2026-07-23T18:30:00+07:00",
+      "last_run_at": "2026-07-23T18:00:10.952307+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "discord",
+        "chat_id": "1519928037687164928",
+        "chat_name": "binglab\u2019s server / #predictions / Reports Improvements",
+        "thread_id": "1519928037687164928",
+        "user_id": "357551371995709440"
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "file"
+      ],
+      "workdir": null,
+      "fire_claim": null,
+      "_old_provider_snapshot": "openai-codex",
+      "_old_model_snapshot": "gpt-5.5",
+      "snapshot_stripped_at": "2026-07-07T14:05:00+07:00",
+      "snapshot_strip_reason": "Intentional Option 1 rotation; snapshots no longer reflect current intent",
+      "provider_snapshot": "minimax-oauth",
+      "model_snapshot": "minimax-m2.7"
+    },
+    {
+      "id": "318732718aaa",
+      "name": "sport-scanning-v3.2-10-10-achievement-watchdog",
+      "prompt": "script-only v3.2 10/10 watchdog; alert only when all_pass true",
+      "skills": [
+        "sports-prediction",
+        "sports-automation-production"
+      ],
+      "skill": "sports-prediction",
+      "model": "minimax-m2.7",
+      "provider": "minimax-oauth",
+      "base_url": null,
+      "script": "v31_1010_noagent.sh",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/30 * * * *",
+        "display": "*/30 * * * *"
+      },
+      "schedule_display": "*/30 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 1066
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-29T18:10:40.202287+07:00",
+      "next_run_at": "2026-07-23T18:30:00+07:00",
+      "last_run_at": "2026-07-23T18:00:11.726051+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "discord",
+        "chat_id": "1519928037687164928",
+        "chat_name": "binglab\u2019s server / #predictions / Reports Improvements",
+        "thread_id": "1519928037687164928",
+        "user_id": "357551371995709440"
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "file"
+      ],
+      "workdir": null,
+      "fire_claim": null,
+      "_old_provider_snapshot": "openai-codex",
+      "_old_model_snapshot": "gpt-5.5",
+      "snapshot_stripped_at": "2026-07-07T14:05:00+07:00",
+      "snapshot_strip_reason": "Intentional Option 1 rotation; snapshots no longer reflect current intent",
+      "provider_snapshot": "minimax-oauth",
+      "model_snapshot": "minimax-m2.7"
+    },
+    {
+      "id": "4ef5656d7f31",
+      "name": "sport-scanning-v3.2-cron-failure-alert",
+      "prompt": "script-only sports v3.2 cron failure/skip alert watchdog. Runs without LLM; silent when core jobs are healthy; sends Discord/email directly from script when a core sports cron job errors/skips or provider/model pins drift.",
+      "skills": [],
+      "skill": null,
+      "model": "minimax-m2.7",
+      "provider": "minimax-oauth",
+      "base_url": null,
+      "script": "v32_cron_failure_alert.py",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 6095
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-06-30T18:43:23.985665+07:00",
+      "next_run_at": "2026-07-23T18:15:00+07:00",
+      "last_run_at": "2026-07-23T18:10:12.144626+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "discord",
+        "chat_id": "1519928037687164928",
+        "chat_name": "binglab\u2019s server / #predictions / Reports Improvements",
+        "thread_id": "1519928037687164928",
+        "user_id": "357551371995709440"
+      },
+      "enabled_toolsets": [
+        "terminal",
+        "file"
+      ],
+      "workdir": null,
+      "fire_claim": null,
+      "_old_provider_snapshot": "openai-codex",
+      "_old_model_snapshot": "gpt-5.5",
+      "snapshot_stripped_at": "2026-07-07T14:05:00+07:00",
+      "snapshot_strip_reason": "Intentional Option 1 rotation; snapshots no longer reflect current intent",
+      "provider_snapshot": "minimax-oauth",
+      "model_snapshot": "MiniMax-M2.7"
+    },
+    {
+      "id": "5e9a1c3f8b2d",
+      "name": "sport-scanning-v3.2-hourly-refresh-schedule",
+      "prompt": "Run the hourly fixture refresh. This is a SCRIPT-ONLY job \u2014 do not use an agent.\n\nExecute: python3 /Users/beem/.hermes/profiles/sports/scripts/sports_v32_hourly_refresh.py\n\nThis script calls sports_v31_espn_ingest.py for today + next 7 days with enrich=False,\nrefreshing fixture metadata every hour. It is idempotent \u2014 safe to re-run.\n\nLog output to /Users/beem/.hermes-shared/reports/sports/v3/audit/hourly-refresh-report.json.\n\nReturn [SILENT] if the script exits 0. If it exits non-zero, report the error briefly.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "sports_v32_hourly_refresh.py",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 * * * *",
+        "display": "0 * * * *"
+      },
+      "schedule_display": "0 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 3
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-07-23T06:00:00+07:00",
+      "next_run_at": "2026-07-23T19:00:00+07:00",
+      "last_run_at": "2026-07-23T18:10:33.300972+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "enabled_toolsets": [
+        "terminal",
+        "file"
+      ],
+      "workdir": null,
+      "fire_claim": null,
+      "provider_snapshot": null,
+      "model_snapshot": null
+    }
+  ],
+  "updated_at": "2026-07-23T18:10:33.304491+07:00"
+}
