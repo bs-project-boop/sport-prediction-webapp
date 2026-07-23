@@ -44,9 +44,11 @@ MATCH_STATUS_MAP = {
     "not started": "SCHEDULED",
     "not_started": "SCHEDULED",
     "not started yet": "SCHEDULED",
-    "init": "SCHEDULED",
+    "init": "SCHEDULED",          # "INIT" from legacy raw data
     "k": "SCHEDULED",          # "K" from result capture = Kick-off scheduled
     "b": "SCHEDULED",          # "B" = belum mulai (not started)
+    "scheduled": "SCHEDULED",  # keep lowercase for fallback
+    "schedul": "SCHEDULED",
     # LIVE variants
     "in progress": "LIVE",
     "first half": "LIVE",
