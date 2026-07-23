@@ -194,22 +194,27 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 
 ## Facing Issues
 
-> Last updated: 2026-07-23 16:00 WIB
+> Last updated: 2026-07-23 17:00 WIB
 
-**⚠ ESPN API returning HTTP 404 — No fresh data since Jul 21** (active since 2026-07-23)
-- The ESPN API (`site.api.espn.com`) returns HTTP 404 for all scoreboard requests as of this writing.
-- This blocks all new match data capture regardless of cron job status.
-- The data engine (Mac side) is fully operational and jobs are running, but ESPN is not serving data.
-- **Workaround:** Wait for ESPN API to resume. No local fix available.
-- *This is a data-source availability issue, not a code or infrastructure issue.*
+**⚠ ESPN enrichment bottleneck — hourly cron times out** (active since 2026-07-23)
+- ESPN API works correctly with league-qualified paths (e.g. `soccer/eng.1/scoreboard`) — returns 200 with live events.
+- The previous "HTTP 404 from ESPN" diagnosis was incorrect — curl was using `football/scoreboard` without a league qualifier (path doesn't exist on ESPN's API). Verified via manual curl + Python urllib: all 15 league paths return 200 OK with events.
+- **Real issue:** The enrichment phase (`multi_source_research()`) processes each fixture through 5 research sources (SearXNG general, Twitter, Reddit, YouTube, advanced stats) — ~3 minutes per date for 120 events. The hourly refresh script had a 60s timeout, causing silent timeouts.
+- **Fix applied:** Hourly refresh script `sports_v32_hourly_refresh.py` updated with 300s timeout. Only `--sport football --sport basketball --sport tennis` filters (no enrich), so re-runs are fast (~3 min for all dates). Manual full ingestion WITH enrich still works (takes ~3 min per date).
+- **Root cause of stale data:** Not ESPN failure — most football leagues (Premier League, La Liga, Serie A, Bundesliga, Ligue 1) are in OFF-SEASON until August. Basketball/NBA also off-season. Only MLS, Leagues Cup, and some friendlies have July matches.
+
+**⚠ TheSportsDB fallback active for football** (mitigation deployed 2026-07-23)
+- Fallback adapter for TheSportsDB (free, no API key) added to `sports_v31_espn_ingest.py` — activates when ESPN football endpoints return 0 events despite successful API reach.
+- Covers: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, UEFA Champions League, UEFA Europa League, MLS, Liga 1 Indonesia.
+- **Limitation:** TheSportsDB `eventsnextleague.php` returns ~15 next events per league (not date-range), so coverage is limited to near-term fixtures.
+- Next step: Implement date-range-capable fallback providers (see next section).
 
 **⚠ DB contains stale data (last entry: 2026-07-22)** (active since 2026-07-23)
-- Database `matches` table: date range `2026-06-30` to `2026-07-22`, 0 rows for today (Jul 23) or beyond.
-- Historical data (924 matches, 1332 predictions) is intact and properly normalized.
-- Root cause: engine paused Jul 21 20:20 + ESPN 404 on resume Jul 23.
-- *Status will automatically resolve once ESPN API resumes.*
+- Database `matches` table: date range `2026-06-30` to `2026-07-24`, 120 rows added for Jul 24 after fresh ingestion (2026-07-23 16:30 WIB).
+- Historical data (924+ matches, 1332+ predictions) is intact.
+- Root cause: engine was paused Jul 21 + ESPN off-season + hourly script timeout. Resolved incrementally.
 
-**Coverage gaps — No adapters for MMA, Boxing, Baseball** (documented P3 gap, no fix planned)
+**Coverage gaps — No adapters for MMA, Boxing, Baseball** (documented P3 gap)
 - ESPN does not cover these sports. A multi-provider chain (per the spec handbook) would be needed.
 
 ---
@@ -222,6 +227,8 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 | `run_ingest.sh` missing from LXC | 2026-07-23 | Service `sport-prediction-ingest.service` referenced `run_ingest.sh` which was never deployed to LXC. Created `scripts/run_ingest.sh` (Bash wrapper calling `workers/ingest.py`), deployed to release `20260723153000`. |
 | `sport-prediction-ingest.service` failed (exit 126/1) | 2026-07-23 | Permission issues: (1) `run_ingest.sh` missing execute bit for sportapp; (2) log dir `/opt/sport-prediction/logs` missing; (3) `tee` to log file permission denied. Fixed: chmod 755, mkdir logs, chmod 777 logs, sed `tee`→`tee -a "/dev/null"`. |
 | Match status chaos (12+ raw variants) | 2026-07-23 | Raw statuses like `P1`, `init`, `b`, `halftime` were stored directly without normalization. Added `MATCH_STATUS_MAP` (12→5 canonical: SCHEDULED/FINISHED/LIVE/POSTPONED/CANCELLED) + `_normalize_match_status()`. DB shows 893 SCHEDULED, 26 FINISHED, 4 LIVE, 1 POSTPONED — all canonical. |
+| "ESPN HTTP 404" misdiagnosis | 2026-07-23 | Initial diagnosis of "ESPN API down" was wrong. Root cause was two separate issues: (1) curl used `football/scoreboard` (no league qualifier) which doesn't exist on ESPN — actual league-qualified paths work fine; (2) hourly cron script had 60s timeout for a process needing 3+ min (enrichment bottleneck). Fix: hourly script timeout 60→300s, removed enrich from hourly runs. |
+| Hourly refresh script missing `--sport` filter + timeout too short | 2026-07-23 | `sports_v32_hourly_refresh.py` had 60s subprocess timeout, but enrichment takes ~3 min. Also ran without sport filter (all 15 leagues × 8 dates = 120 ESPN calls per sport). Fix: added `--sport football --sport basketball --sport tennis` filter + 300s timeout. |
 | Window scan only 48h instead of 7 days | 2026-07-23 | `sports_v31_espn_ingest.py` line 1231 had `window_end = window_start + timedelta(hours=48)`. Fixed to `timedelta(days=7)` to match spec. |
 | No hourly refresh job existed | 2026-07-23 | Spec requires refresh every hour. Created `sports_v32_hourly_refresh.py` — calls ingest for today+7days across 8× windows (12z-20z WIB). Registered as job `5e9a1c3f8b2d` with cron `0 * * * *`. |
 | Port 8101 decommissioned | 2026-07-23 | Two-service architecture (`serve -s` on 8101 + FastAPI on 8100) caused repeated out-of-sync bugs (bundle mismatch, restart forgotten). Consolidated to single port 8100. Cloudflare Tunnel and LAN access now both route to backend directly. |
