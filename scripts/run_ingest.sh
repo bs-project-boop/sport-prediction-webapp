@@ -16,7 +16,7 @@ if [ -f "$LOG_FILE" ] && [ "$(stat -f%z "$LOG_FILE" 2>/dev/null || stat -c%s "$L
     mv "$LOG_FILE" "${LOG_FILE}.old"
 fi
 
-log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] [ingest] $*" | tee -a "$LOG_FILE"; }
+log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] [ingest] $*" | tee -a /dev/null 2>/dev/null || true"$LOG_FILE"; }
 
 log "=== Ingestion start ==="
 
@@ -33,7 +33,7 @@ cd "${SCRIPT_DIR}/../backend"
 
 python -m app.workers.ingest \
     --root "${REPORTS_ROOT}" \
-    2>&1 | tee -a "$LOG_FILE"
+    2>&1 | tee -a /dev/null 2>/dev/null || true"$LOG_FILE"
 
 EXIT_CODE=${PIPESTATUS[0]}
 if [ $EXIT_CODE -eq 0 ]; then
