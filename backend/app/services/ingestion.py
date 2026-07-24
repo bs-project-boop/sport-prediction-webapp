@@ -154,22 +154,34 @@ def _ingest_schedule(db: Session, doc: dict):
 
 
 def _ingest_prediction(db: Session, doc: dict):
+    """Ingest predictions. Uses match_id as canonical key — one Prediction row per match.
+
+    BEFORE (bug): used source_record_id = "{date}:{match_id}" as lookup key.
+    This caused daily-scan's 7-day window to INSERT a new row every cycle for the
+    same match (since source_record_id included the scan date, never matched on re-run).
+    FIX: look up by match_id (canonical) instead. DB enforces uq_predictions_match_id.
+    """
     date_value = datetime.strptime(doc["date_wib"], "%Y-%m-%d").date()
     written = 0
     for item in doc.get("predictions", []):
         match = _upsert_match(db, item, date_value)
         if not match:
             continue
-        source_id = f"{doc.get('date_wib')}:{item.get('match_id')}"
-        row = db.scalar(select(Prediction).where(Prediction.source_record_id == source_id))
+        # Canonical lookup by match_id (not source_record_id which includes scan date)
+        row = db.scalar(select(Prediction).where(Prediction.match_id == match.match_id))
+        is_new = False
         if not row:
+            source_id = f"{doc.get('date_wib')}:{item.get('match_id')}"
             row = Prediction(match_id=match.match_id, source_record_id=source_id)
             db.add(row)
+            is_new = True
         for attr, key in (("predicted_outcome", "predicted_outcome"), ("predicted_score_or_result", "predicted_score_or_result"), ("confidence_percent", "confidence_percent"), ("confidence_label", "confidence_label"), ("confidence_breakdown", "confidence_breakdown"), ("confidence_model_version", "confidence_model_version"), ("risk_score", "risk_score_1_to_10"), ("no_pick", "no_pick"), ("data_source_degraded", "DATA_SOURCE_DEGRADED"), ("prediction_eligible", "prediction_eligible"), ("accuracy_excluded", "accuracy_excluded"), ("validation_status", "validation_status")):
             if key in item: setattr(row, attr, item[key])
         row.raw_document = item
         row.evidence = item.get("searxng_evidence", [])
         row.reasoning = item.get("reasoning", [])
+        # Always refresh updated_at; created_at stays original (preserve first-seen time)
+        row.updated_at = datetime.now(timezone.utc)
         written += 1
     db.commit()
     return len(doc.get("predictions", [])), written
