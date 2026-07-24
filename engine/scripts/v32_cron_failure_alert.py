@@ -18,8 +18,18 @@ from datetime import datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import fcntl, sys, os
+LOCK_FILE = /var/run/sportapp/sport-cronalert.lock
+try:
+    lock_fd = os.open(LOCK_FILE, os.O_CREAT|os.O_RDWR)
+    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    print([SKIPPED] cron-alert already running)
+    sys.exit(0)
+
+
 JOBS_PATH = Path("/opt/sport-prediction/current/engine/data/jobs.json")
-SHARED_ROOT = Path("/var/lib/sport-prediction/synced-reports")
+SHARED_ROOT = Path("/opt/sport-prediction/current/engine/data")
 ALERT_DIR = SHARED_ROOT / "watchdog-alerts"
 DISCORD_OUTBOX = SHARED_ROOT / "discord-outbox"
 EMAIL_OUTBOX = SHARED_ROOT / "email-outbox"
@@ -298,7 +308,7 @@ def send_discord(text: str, fp: str) -> dict:
         stderr=subprocess.STDOUT,
         text=True,
         timeout=60,
-        env={"HOME": "/Users/beem", **os.environ},
+        env={**os.environ},  # NOTE: /Users/beem does not exist on LXC
     )
     return {"sent": proc.returncode == 0, "exit_code": proc.returncode, "output": (proc.stdout or "")[-500:], "file": str(local_path)}
 
@@ -320,7 +330,7 @@ def send_email(text: str, fp: str) -> dict:
             stderr=subprocess.STDOUT,
             text=True,
             timeout=90,
-            env={"HOME": "/Users/beem", **os.environ},
+            env={**os.environ},  # NOTE: /Users/beem does not exist on LXC
         )
         result["imap_verified_in_sent"] = proc.returncode == 0
         result["imap_verify_exit_code"] = proc.returncode

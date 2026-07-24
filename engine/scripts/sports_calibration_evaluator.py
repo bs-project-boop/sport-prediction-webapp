@@ -18,10 +18,10 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 WIB = timezone(timedelta(hours=7))
-ROOT = Path("/var/lib/sport-prediction/synced-reports/v3")
+ROOT = Path("/opt/sport-prediction/current/engine/data/v3")
 STATE_DIR = ROOT / "state"
 OUTBOX = ROOT / "discord-outbox"
-META_DIR = Path("/var/lib/sport-prediction/synced-reports/meta-learning")
+META_DIR = Path("/opt/sport-prediction/current/engine/data/meta-learning")
 HISTORY_PATH = META_DIR / "calibration-history.json"
 WEIGHT_ADJUSTMENTS_PATH = META_DIR / "weight-adjustments.json"
 ENGINE_PATH = Path("/var/lib/sport-prediction/.hermes-shared/scripts/sports_v3_engine.py")

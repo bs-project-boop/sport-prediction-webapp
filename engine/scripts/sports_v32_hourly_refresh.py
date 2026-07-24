@@ -16,8 +16,18 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import fcntl, sys, os as _os
+LOCK_FILE = /var/run/sportapp/sport-hourly.lock
+try:
+    lock_fd = _os.open(LOCK_FILE, _os.O_CREAT|_os.O_RDWR)
+    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    print([SKIPPED] hourly refresh already running)
+    sys.exit(0)
+
+
 WIB = timezone(timedelta(hours=7))
-ROOT = Path("/var/lib/sport-prediction/synced-reports")
+ROOT = Path("/opt/sport-prediction/current/engine/data")
 INGEST_SCRIPT = Path("/opt/sport-prediction/current/engine/scripts/sports_v31_espn_ingest.py")
 REFRESH_REPORT = ROOT / "audit" / "hourly-refresh-report.json"
 

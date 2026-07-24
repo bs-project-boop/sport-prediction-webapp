@@ -15,8 +15,18 @@ import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+import fcntl, sys, os
+LOCK_FILE = "/var/run/sportapp/sport-daily.lock"
+lock_fd = os.open(LOCK_FILE, os.O_CREAT|os.O_RDWR)
+try:
+    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    print("[SKIPPED] daily scan already running (lock held)")
+    sys.exit(0)
+
+
 WIB = timezone(timedelta(hours=7))
-ROOT = Path("/var/lib/sport-prediction/synced-reports")
+ROOT = Path("/opt/sport-prediction/current/engine/data")
 SCHEDULE_DIR = ROOT / "schedules"
 PRED_DIR = ROOT / "predictions"
 STATE_DIR = ROOT / "state"
@@ -63,7 +73,7 @@ def run(cmd: list[str], timeout: int = 300) -> dict:
         stderr=subprocess.STDOUT,
         text=True,
         timeout=timeout,
-        env={"HOME": "/Users/beem", **os.environ},
+        env={**os.environ},  # NOTE: /Users/beem does not exist on LXC
     )
     return {"exit_code": proc.returncode, "output": (proc.stdout or "")[-4000:]}
 
@@ -186,7 +196,7 @@ def send_discord_alert(date: str, reason: str) -> dict:
         stderr=subprocess.STDOUT,
         text=True,
         timeout=60,
-        env={"HOME": "/Users/beem", **os.environ},
+        env={**os.environ},  # NOTE: /Users/beem does not exist on LXC
     )
     return {"sent": proc.returncode == 0, "exit_code": proc.returncode, "output": (proc.stdout or "")[-500:], "file": str(path)}
 
@@ -236,3 +246,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

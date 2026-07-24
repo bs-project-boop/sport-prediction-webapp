@@ -19,32 +19,55 @@ Prediction desk for football, basketball, tennis, motorsport, and NFL — coveri
 ## Architecture
 
 ```
-Browser (LAN direct / Cloudflare Tunnel)
+Browser (LAN / Cloudflare Tunnel)
         │
         ▼
-┌──────────────────────────────────────┐
-│  LXC 108 (Proxmox, 10.10.10.83)     │
-│                                      │
-│  ┌──────────────────────────────┐   │
-│  │ sport-prediction-backend      │   │
-│  │ FastAPI / uvicorn :8100      │   │
-│  │ • Serves: REST API           │   │
-│  │ • Serves: React SPA (/)     │   │
-│  │ • CORS: sports.bintangsofyan │   │
-│  └──────────────────────────────┘   │
-│         │
-│         ▼
-│  ┌─────────────┐  ┌─────────────────┐
-│  │ PostgreSQL  │  │ sport_prediction │
-│  │ 127.0.0.1   │  │ 924 matches     │
-│  │ :5432       │  │ 1332 predictions│
-│  └─────────────┘  └─────────────────┘
-└──────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  LXC 108 (Proxmox, 10.10.10.83)                         │
+│                                                          │
+│  ┌──────────────────────────────┐                        │
+│  │ sport-prediction-backend     │                        │
+│  │ FastAPI / uvicorn :8100     │                        │
+│  │ • REST API                  │                        │
+│  │ • React SPA (/)             │                        │
+│  └──────────────────────────────┘                        │
+│         │                                                │
+│         ▼                                                │
+│  ┌────────────────────┐  ┌────────────────────────────┐  │
+│  │ PostgreSQL         │  │ Engine Scripts (systemd)  │  │
+│  │ 127.0.0.1 :5432    │  │ 7 timers + services:      │  │
+│  │ 1203 matches       │  │ • daily-scan (00:01 WIB)  │  │
+│  │ 2209 predictions   │  │ • prematch (*/5 monitoring│  │
+│  │                    │  │ • results (*/5 monitoring │  │
+│  │                    │  │ • eod-summary (*/30)       │  │
+│  │                    │  │ • 10-10 watchdog (*/30)   │  │
+│  │                    │  │ • hourly-refresh (hourly) │  │
+│  │                    │  │ • cron-alert (*/5)        │  │
+│  │                    │  │ All run as sportapp user  │  │
+│  │                    │  │ Lock-protected (flock/    │  │
+│  │                    │  │ fcntl) — no overlaps      │  │
+│  └────────────────────┘  └────────────────────────────┘  │
+│                            │                             │
+│                            ▼                             │
+│                   /opt/sport-prediction/                  │
+│                   current/engine/data/                     │
+│                   (predictions, schedules, state, audit)   │
+└──────────────────────────────────────────────────────────┘
         │
         │ Cloudflare Tunnel (LXC 104 → host systemd)
         ▼
   sports.bintangsofyan.com (HTTPS)
-```
+
+### Data Flow (cutover #2 — Mac decommissioned 2026-07-24)
+1. Engine timer fires → v32_daily_quota_safe_fallback.py (as sportapp)
+2. Script fetches ESPN API → writes JSON to /opt/sport-prediction/current/engine/data/
+3. backend/run_ingest.sh (systemd service) → reads JSON → upserts to PostgreSQL
+4. Backend API serves React SPA + REST at :8100
+
+⚠️ Mac is no longer involved. Previously Mac ran rsync daemon (com.hermes.sport-prediction-sync)
+pushing to /var/lib/sport-prediction/synced-reports/ — now fully decommissioned.
+Root path migrated: /var/lib/sport-prediction/synced-reports/ → /opt/sport-prediction/current/engine/data/
+Duplicate ingestion risk eliminated (sport-prediction-ingest.timer/service removed 2026-07-24).
 
 ### Ports
 
@@ -194,7 +217,18 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 
 ## Facing Issues
 
-> Last updated: 2026-07-23 17:00 WIB
+> Last updated: 2026-07-24 16:30 WIB
+
+**⚠ Duplicate predictions in DB (~60 rows, 2.7%)** (known since 2026-07-24)
+- 10 match_ids appear 6 times each in `predictions` table (vs. expected 1).
+- Root cause: initial sync on Jul 23 — same match discovered on different report dates
+  (initial run populating `source_record_id` = `{date}:{match_id}`, so same match across
+  multiple dates of the initial batch write created separate rows).
+- NOT caused by active double-write — no overlap between `v32_daily_quota_safe_fallback.py`
+  and `sport-prediction-ingest.service` (the latter was removed in cutover #2).
+- **Impact:** 2209 predictions instead of ~2149 (estimate).
+- **Fix:** Cleanup DELETE query — tracked separately, not yet executed.
+- **DB state:** 2209 predictions, 1203 matches (as of 2026-07-24 08:14 UTC).
 
 **⚠ ESPN enrichment bottleneck — hourly cron times out** (active since 2026-07-23)
 - ESPN API works correctly with league-qualified paths (e.g. `soccer/eng.1/scoreboard`) — returns 200 with live events.

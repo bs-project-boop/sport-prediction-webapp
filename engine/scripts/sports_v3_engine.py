@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 WIB = timezone(timedelta(hours=7))
-ROOT = Path("/var/lib/sport-prediction/synced-reports")
+ROOT = Path("/opt/sport-prediction/current/engine/data")
 SCHEDULE_DIR = ROOT / "schedules"
 PRED_DIR = ROOT / "predictions"
 STATE_DIR = ROOT / "state"
@@ -842,7 +842,7 @@ def send_email(subject: str, html_path: Path, text: str, tag: str) -> Dict[str, 
         input=mml_path.read_bytes(),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        env={**os.environ, "HOME": "/Users/beem"},
+        env={**os.environ},  # NOTE: /Users/beem does not exist on LXC
         timeout=60,
     )
     result = {

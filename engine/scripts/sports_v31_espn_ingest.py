@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional, Tuple
 SEARXNG_URL = "http://10.10.10.5:8888"
 
 WIB = timezone(timedelta(hours=7))
-ROOT = Path("/var/lib/sport-prediction/synced-reports")
+ROOT = Path("/opt/sport-prediction/current/engine/data")
 SCHEDULE_DIR = ROOT / "schedules"
 PRED_DIR = ROOT / "predictions"
 SCHEDULE_DIR.mkdir(parents=True, exist_ok=True)

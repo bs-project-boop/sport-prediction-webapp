@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 WIB = timezone(timedelta(hours=7))
-ROOT = Path("/var/lib/sport-prediction/synced-reports")
+ROOT = Path("/opt/sport-prediction/current/engine/data")
 AUDIT_DIR = ROOT / "audit"
 AUDIT_DIR.mkdir(parents=True, exist_ok=True)
 ENGINE_PATH = Path("/opt/sport-prediction/current/engine/scripts/sports_v3_engine.py")
@@ -73,7 +73,7 @@ def hermes_cron_list() -> List[Dict[str, Any]]:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        env={"HOME": "/Users/beem", **dict(os.environ)},
+        env={**os.environ},  # NOTE: /Users/beem does not exist on LXC
         timeout=30,
     )
     out = proc.stdout or ""
@@ -142,15 +142,18 @@ def _parse_iso_wib(value: str) -> Optional[datetime]:
 
 
 def _send_discord_alert(text: str, tag: str) -> Dict[str, Any]:
+    import shutil as _shutil
     path = DISCORD_OUTBOX / f"{tag}.txt"
     path.write_text(text)
+    if _shutil.which("hermes") is None:
+        return {"sent": False, "exit_code": -1, "output": "hermes not found — saved to outbox only", "file": str(path)}
     proc = subprocess.run(
         ["hermes", "send", "--quiet", "--to", DISCORD_TARGET, "--file", str(path)],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         timeout=60,
-        env={"HOME": "/Users/beem", **dict(os.environ)},
+        env={**os.environ},  # NOTE: /Users/beem does not exist on LXC
     )
     return {"sent": proc.returncode == 0, "exit_code": proc.returncode, "output": (proc.stdout or "")[-500:], "file": str(path)}
 

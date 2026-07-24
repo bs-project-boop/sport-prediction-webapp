@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 WIB = timezone(timedelta(hours=7))
-ROOT = Path("/var/lib/sport-prediction/synced-reports")
+ROOT = Path("/opt/sport-prediction/current/engine/data")
 ENGINE_PATH = Path("/opt/sport-prediction/current/engine/scripts/sports_v3_engine.py")
 SEARXNG_URL = "http://10.10.10.5:8888"
 DISCORD_TARGET = "discord:1515327116189630526"
@@ -55,15 +55,21 @@ def audit(action: str, status: str, details: Dict[str, Any], date: Optional[str]
 
 
 def hermes_send(text: str, tag: str) -> Dict[str, Any]:
+    import shutil
     path = OUTBOX / f"{tag}.txt"
     path.write_text(text)
+    if shutil.which("hermes") is None:
+        # hermes CLI not available (LXC host) — write to outbox only, skip delivery
+        result = {"sent": False, "exit_code": -1, "output": "hermes not found — saved to outbox only", "file": str(path)}
+        audit("discord_send", "skipped_no_hermes", {"tag": tag, **result})
+        return result
     proc = subprocess.run(
         ["hermes", "send", "--quiet", "--to", DISCORD_TARGET, "--file", str(path)],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         timeout=60,
-        env={"HOME": "/Users/beem", **dict(__import__("os").environ)},
+        env={**os.environ},  # NOTE: /Users/beem does not exist on LXC
     )
     result = {"sent": proc.returncode == 0, "exit_code": proc.returncode, "output": proc.stdout[-500:], "file": str(path)}
     audit("discord_send", "ok" if result["sent"] else "error", {"tag": tag, **result})
