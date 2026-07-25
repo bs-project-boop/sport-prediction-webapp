@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 import re
 import urllib.error
 import urllib.parse
@@ -25,6 +26,9 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
 SEARXNG_URL = "http://10.10.10.5:8888"
 
@@ -191,7 +195,8 @@ def fetch_thesportsdb_events(window_start: datetime, window_end: datetime) -> Tu
 
             try:
                 dt_wib = dt.replace(tzinfo=WIB)
-            except Exception:
+            except Exception as exc:
+                logger.warning("fetch_thesportsdb_events: failed to attach WIB timezone to %s: %s", dt, exc)
                 continue
             if not (window_start <= dt_wib < window_end):
                 continue
@@ -412,7 +417,8 @@ def fetch_motogp_pulselive(date_str: str, window_start: datetime, window_end: da
             try:
                 start = datetime.fromisoformat(str(ev.get("date_start"))).replace(tzinfo=WIB)
                 end = datetime.fromisoformat(str(ev.get("date_end"))).replace(hour=23, minute=59, tzinfo=WIB)
-            except Exception:
+            except Exception as exc:
+                logger.warning("fetch_motogp_pulselive: failed to parse weekend fallback dates for event %s: %s", ev.get("name"), exc)
                 continue
             if start < window_end and end >= window_start:
                 gp_name = (ev.get("sponsored_name") or ev.get("name") or "MotoGP Grand Prix").strip()
