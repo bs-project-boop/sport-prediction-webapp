@@ -147,24 +147,49 @@ sport-prediction-webapp/
 
 ## Deployment
 
-### 1. Build frontend
+> **Mac is ONLY a command dispatcher** — all build, compile, and deploy work happens inside LXC 108.
+
+### Frontend: Build + Release (LXC-native)
 
 ```bash
-cd frontend
-npm install
-npm run build      # output → dist/
+# Option A — Recommended: use the safe release script (copies forward all
+# components from current release, builds frontend on LXC, validates before switch)
+ssh lxc-108 'bash /opt/sport-prediction/create_sport_release.sh --frontend-only'
+# This script: git pull + npm install + npm run build + copy dist to new release
+# + pre-switch validation (checks backend/, frontend/dist/, engine/ exist)
+# + atomic symlink switch to new release
+
+# Option B — Full stack release (all components)
+ssh lxc-108 'bash /opt/sport-prediction/create_sport_release.sh --all'
 ```
 
-### 2. Sync to LXC
+Frontend source workspace on LXC: `/opt/sport-prediction/build-workspace/frontend/frontend`
+(Cloned from GitHub, Node.js v22.22.3 managed via nvm in LXC)
+
+### Backend: Deploy migration/file change
 
 ```bash
+ssh lxc-108 'bash /opt/sport-prediction/create_sport_release.sh --backend-only'
+```
+
+### Engine: Deploy script changes
+
+```bash
+ssh lxc-108 'bash /opt/sport-prediction/create_sport_release.sh --engine-only'
+```
+
+### Manual fallback (if script unavailable)
+
+```bash
+# Create release dir + copy forward all components from current release
+ssh lxc-108 bash << 'EOF'
 RELEASE_TS=$(date +%Y%m%d%H%M%S)
-ssh proxmox "pct exec 108 -- mkdir -p /opt/sport-prediction/releases/${RELEASE_TS}/{backend,frontend}"
-tar -C frontend/dist -cf - . | ssh proxmox "pct exec 108 -- tar -xf - -C /opt/sport-prediction/releases/${RELEASE_TS}/frontend/"
-# Copy backend from current release base
-ssh proxmox "pct exec 108 -- cp -r /opt/sport-prediction/releases/<previous_release>/backend /opt/sport-prediction/releases/${RELEASE_TS}/"
-# Update symlink
-ssh proxmox "pct exec 108 -- ln -sfn /opt/sport-prediction/releases/${RELEASE_TS} /opt/sport-prediction/current"
+mkdir -p /opt/sport-prediction/releases/${RELEASE_TS}
+cp -a /opt/sport-prediction/current/backend  /opt/sport-prediction/releases/${RELEASE_TS}/
+cp -a /opt/sport-prediction/current/engine  /opt/sport-prediction/releases/${RELEASE_TS}/
+cp -a /opt/sport-prediction/current/frontend /opt/sport-prediction/releases/${RELEASE_TS}/
+ln -sfn /opt/sport-prediction/releases/${RELEASE_TS} /opt/sport-prediction/current
+EOF
 ```
 
 ### 3. Restart backend (REQUIRED — always use systemd)
