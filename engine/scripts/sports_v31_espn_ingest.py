@@ -104,6 +104,8 @@ LEAGUE_CONFIG: List[Tuple[str, str, str]] = [
     ("basketball/wnba",              "basketball", "WNBA"),
     # NFL
     ("football/nfl",                 "nfl", "NFL"),
+    # MMA
+    ("mma/ufc",                      "mma", "UFC"),
 ]
 
 
@@ -1320,7 +1322,7 @@ def ingest_for_date(target_date: Optional[str] = None, sports_filter: Optional[L
     all_events: List[Dict[str, Any]] = []
     no_event: List[Dict[str, Any]] = []
     sports_covered: List[str] = []
-    sport_has_event: Dict[str, bool] = {s: False for s in ("football", "tennis", "motorsport", "basketball", "nfl")}
+    sport_has_event: Dict[str, bool] = {s: False for s in ("football", "tennis", "motorsport", "basketball", "nfl", "mma")}
     endpoint_probe: Dict[str, Dict[str, Any]] = {}
 
     for espn_path, sport_v31, competition in LEAGUE_CONFIG:
@@ -1408,7 +1410,7 @@ def ingest_for_date(target_date: Optional[str] = None, sports_filter: Optional[L
     })
 
     # NO_EVENT entries for sports still empty
-    for sport_v31 in ("football", "tennis", "motorsport", "basketball", "nfl"):
+    for sport_v31 in ("football", "tennis", "motorsport", "basketball", "nfl", "mma"):
         if not sport_has_event.get(sport_v31):
             no_event.append({
                 "sport": sport_v31,

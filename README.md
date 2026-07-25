@@ -272,6 +272,14 @@ Of 911 past matches stuck at `SCHEDULED`, the breakdown by ESPN coverage is:
 
 This is a **known limitation** (not a bug). The 30 matches that already have `actual_result` in DB (FIFA World Cup 2026 matches from July 8–20) prove the pipeline works correctly for ESPN-covered sports.
 
+### ESPN Sport Coverage Status
+
+| Sport | ESPN Endpoint | Status | Notes |
+|-------|--------------|--------|-------|
+| **MMA (UFC)** | `mma/ufc` scoreboard | ✅ Active — added 2026-07-26 | Fighter vs fighter format. Results: "WIN" for winner. Falls back to generic `espn_scoreboard_for_event` path with `winner` flag. |
+| **Boxing** | `boxing/scoreboard` | ❌ No coverage (HTTP 404) | ESPN does not expose Boxing schedule via its public scoreboard API. No free-tier alternative confirmed. Boxing coverage is a documented gap — no scraping of promoter sites per policy. |
+| Football, Basketball, Tennis, MotoGP, NFL | Various | ✅ Active | Existing coverage unchanged. |
+
 ---
 
 ## Known Issues Resolved

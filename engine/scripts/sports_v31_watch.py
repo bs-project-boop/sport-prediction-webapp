@@ -463,9 +463,25 @@ def send_postmatch_batch(date: str, event_ids: List[str], texts: List[str]) -> D
 
 
 def espn_scoreboard_for_event(ev: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    sport_path = "soccer/fifa.world" if ev.get("competition") == "FIFA World Cup 2026" else None
+    """Query ESPN scoreboard for a specific event by name match.
+
+    Supports multiple sport paths: FIFA World Cup, UFC/MMA, and generic fallback.
+    Returns the full event JSON + competition + competitors on match, else None.
+    """
+    sport = ev.get("sport", "")
+    competition = ev.get("competition", "")
+
+    # Determine ESPN sport_path for this event
+    if competition == "FIFA World Cup 2026":
+        sport_path = "soccer/fifa.world"
+    elif sport == "mma":
+        sport_path = "mma/ufc"
+    else:
+        sport_path = None
+
     if not sport_path:
         return None
+
     # Query kickoff UTC date and WIB date neighbor to handle timezone crossing
     dates = set()
     kw = ev.get("kickoff_wib", "")[:10]
@@ -488,17 +504,30 @@ def espn_scoreboard_for_event(ev: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 continue
             comp = comps[0]
             competitors = comp.get("competitors", [])
+            # MMA/individual sports: competitor["athlete"]["displayName"]
+            # Team sports: competitor["team"]["displayName"]
             names = []
             for c in competitors:
-                t = c.get("team", {})
-                names.append(t.get("displayName") or t.get("shortName") or "")
+                if "athlete" in c and isinstance(c["athlete"], dict):
+                    names.append(c["athlete"].get("displayName") or c["athlete"].get("shortName") or "")
+                elif "team" in c and isinstance(c["team"], dict):
+                    t = c["team"]
+                    names.append(t.get("displayName") or t.get("shortName") or "")
+                else:
+                    names.append("")
             blob = " vs ".join(names).lower()
-            if all(part.strip().lower() in blob for part in ev.get("event", "").split(" vs ")):
+            if all(part.strip().lower() in blob for part in wanted.split(" vs ")):
                 return {"event": event, "competition": comp, "competitors": competitors, "url": url}
     return None
 
 
 def score_from_espn(match: Dict[str, Any]) -> Optional[Tuple[str, str]]:
+    """Extract (actual_result, winner) from ESPN scoreboard event.
+
+    MMA/fight sports: no numeric score — result is "WIN" for winner, empty for loser.
+    Team sports: returns "scoreA-scoreB" and winner name or "draw".
+    Returns None if event not completed.
+    """
     comp = match["competition"]
     st = comp.get("status", {}).get("type", {})
     completed = bool(st.get("completed")) or st.get("state") == "post"
@@ -507,16 +536,49 @@ def score_from_espn(match: Dict[str, Any]) -> Optional[Tuple[str, str]]:
     comps = match["competitors"]
     if len(comps) < 2:
         return None
-    # ESPN competitors order is often home/away, but our event string is team_a vs team_b.
+    # MMA / individual combat sports: no numeric score, only winner flag
+    if any(winner_flag is not None for winner_flag in [c.get("winner") for c in comps]):
+        winners = []
+        losers = []
+        for c in comps:
+            if "athlete" in c and isinstance(c["athlete"], dict):
+                name = c["athlete"].get("displayName") or c["athlete"].get("shortName") or "?"
+            elif "team" in c and isinstance(c["team"], dict):
+                t = c["team"]
+                name = t.get("displayName") or t.get("shortName") or "?"
+            else:
+                name = "?"
+            if c.get("winner"):
+                winners.append(name)
+            else:
+                losers.append(name)
+        if winners:
+            # MMA result: "WIN" for winner, "" for loser
+            result = "WIN"
+            winner_name = winners[0]
+            return result, winner_name
+        return None
+
+    # Team sports: numeric scores
     scores = []
     names = []
     winners = []
-    for c in comps[:2]:
-        t = c.get("team", {})
-        names.append(t.get("displayName") or t.get("shortName") or "")
-        scores.append(int(c.get("score") or 0))
-        if c.get("winner"):
-            winners.append(names[-1])
+    for c in comps:
+        if "team" in c and isinstance(c["team"], dict):
+            t = c["team"]
+            names.append(t.get("displayName") or t.get("shortName") or "")
+            scores.append(int(c.get("score") or 0))
+            if c.get("winner"):
+                winners.append(names[-1])
+        else:
+            # Individual sport with numeric score (e.g. tennis)
+            if "athlete" in c and isinstance(c["athlete"], dict):
+                names.append(c["athlete"].get("displayName") or c["athlete"].get("shortName") or "")
+                scores.append(int(c.get("score") or 0))
+                if c.get("winner"):
+                    winners.append(names[-1])
+    if not scores:
+        return None
     actual = f"{scores[0]}-{scores[1]}"
     winner = "draw" if scores[0] == scores[1] else (winners[0] if winners else names[0 if scores[0] > scores[1] else 1])
     return actual, winner
