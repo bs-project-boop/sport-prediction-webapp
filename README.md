@@ -33,20 +33,21 @@ Browser (LAN / Cloudflare Tunnel)
 │  └──────────────────────────────┘                        │
 │         │                                                │
 │         ▼                                                │
-│  ┌────────────────────┐  ┌────────────────────────────┐  │
-│  │ PostgreSQL         │  │ Engine Scripts (systemd)  │  │
-│  │ 127.0.0.1 :5432    │  │ 7 timers + services:      │  │
-│  │ 1203 matches       │  │ • daily-scan (00:01 WIB)  │  │
-│  │ 2209 predictions   │  │ • prematch (*/5 monitoring│  │
-│  │                    │  │ • results (*/5 monitoring │  │
-│  │                    │  │ • eod-summary (*/30)       │  │
-│  │                    │  │ • 10-10 watchdog (*/30)   │  │
-│  │                    │  │ • hourly-refresh (hourly) │  │
-│  │                    │  │ • cron-alert (*/5)        │  │
-│  │                    │  │ All run as sportapp user  │  │
-│  │                    │  │ Lock-protected (flock/    │  │
-│  │                    │  │ fcntl) — no overlaps      │  │
-│  └────────────────────┘  └────────────────────────────┘  │
+│  ┌────────────────────┐  ┌────────────────────────────┐ │
+│  │ PostgreSQL         │  │ Engine Scripts (systemd)  │ │
+│  │ 127.0.0.1 :5432   │  │ 8 timers + services:     │ │
+│  │ 1203 matches       │  │ • daily-scan (00:01 WIB) │ │
+│  │ 1202 predictions   │  │ • prematch (*/5)          │ │
+│  │                    │  │ • results (*/5)           │ │
+│  │                    │  │ • results-ingest (*/5)    │ │
+│  │                    │  │ • eod-summary (*/30)      │ │
+│  │                    │  │ • 10-10 watchdog (*/30)   │ │
+│  │                    │  │ • hourly-refresh (hourly) │ │
+│  │                    │  │ • cron-alert (*/5)        │ │
+│  │                    │  │ All run as sportapp user  │ │
+│  │                    │  │ Lock-protected (flock/    │ │
+│  │                    │  │ fcntl) — no overlaps      │ │
+│  └────────────────────┘  └────────────────────────────┘ │
 │                            │                             │
 │                            ▼                             │
 │                   /opt/sport-prediction/                  │
@@ -57,17 +58,18 @@ Browser (LAN / Cloudflare Tunnel)
         │ Cloudflare Tunnel (LXC 104 → host systemd)
         ▼
   sports.bintangsofyan.com (HTTPS)
+```
 
-### Data Flow (cutover #2 — Mac decommissioned 2026-07-24)
-1. Engine timer fires → v32_daily_quota_safe_fallback.py (as sportapp)
-2. Script fetches ESPN API → writes JSON to /opt/sport-prediction/current/engine/data/
-3. backend/run_ingest.sh (systemd service) → reads JSON → upserts to PostgreSQL
-4. Backend API serves React SPA + REST at :8100
+### Two-Writer Pipeline Architecture
 
-⚠️ Mac is no longer involved. Previously Mac ran rsync daemon (com.hermes.sport-prediction-sync)
-pushing to /var/lib/sport-prediction/synced-reports/ — now fully decommissioned.
-Root path migrated: /var/lib/sport-prediction/synced-reports/ → /opt/sport-prediction/current/engine/data/
-Duplicate ingestion risk eliminated (sport-prediction-ingest.timer/service removed 2026-07-24).
+The system has **2 writers** with **strictly separate scopes** — no double-write risk:
+
+| Writer | Trigger | Scope |
+|--------|---------|-------|
+| `v32_daily_quota_safe_fallback.py` (daily-scan) | `daily-scan.timer` (00:01 WIB) | **Discovery/scheduling** — fetches ESPN → writes new matches + predictions to DB (INSERT new rows only) |
+| `run_ingest.sh` (results-ingest) | `sport-engine-results-ingest.timer` (every 5 min) | **Results/validation** — reads `state.json` → updates existing matches with final scores + evaluates predictions (UPDATE existing rows only) |
+
+> ⚠️ **Historical note:** The `sport-prediction-ingest.timer/service` was removed 2026-07-24 because it was thought to be fully redundant with daily-scan. That was incorrect — daily-scan handles *discovery* (new matches), while ingestion handles *results* (existing matches with final scores). The two tasks never overlapped. The results-ingest timer restores this separate responsibility.
 
 ### Ports
 
@@ -140,7 +142,7 @@ sport-prediction-webapp/
 | Change PIN (authenticated) | ✅ Active | PATCH /auth/pin |
 | Swagger docs | ✅ Active | /docs |
 | Cloudflare Tunnel external access | ✅ Active | sports.bintangsofyan.com → 8100 |
-| PostgreSQL data ingestion | ✅ Active | APScheduler every 2 min |
+| Two-writer ingestion pipeline | ✅ Active | Discovery (daily-scan) + results (results-ingest) separate scopes |
 | M1–M8 migration complete | ✅ Done | Monorepo, TanStack Query, React 19 |
 
 ---
@@ -225,6 +227,8 @@ The backend unit is `enabled` (starts on boot); the frontend unit is `disabled` 
 |------|--------|----------------|-----------|
 | `sport-prediction-backend.service` | **enabled** | `/opt/sport-prediction/current/backend` | `.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8100` |
 | `sport-prediction-frontend.service` | **disabled** | — | Decommissioned 2026-07-23 — all access via 8100 |
+| `sport-engine-results-ingest.timer` | **enabled** | `/opt/sport-prediction/current/engine` | Runs `v31_results_ingest.sh` every 5 min |
+| `sport-engine-results-ingest.service` | **static** | `/opt/sport-prediction/current/engine` | Calls `run_ingest.sh` (results-ingest scope only) |
 
 ---
 
@@ -242,7 +246,7 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 
 ## Facing Issues
 
-> Last updated: 2026-07-24 18:00 WIB
+> Last updated: 2026-07-25 05:55 WIB
 
 **⚠ No active issues** — all known issues resolved. See "Known Issues Resolved" below.
 
@@ -252,6 +256,9 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 
 | Issue | Date Resolved | Root Cause + Fix |
 |-------|---------------|------------------|
+| Ingestion results pipeline gap — 933 past matches stuck at SCHEDULED despite actual_result in `prediction_results` | 2026-07-25 | Root cause: `sport-engine-results-ingest.timer` was mistakenly deleted 2026-07-24 (thought to be redundant with daily-scan). Actually, daily-scan handles *discovery* (new matches/predictions INSERT), while results-ingest handles *results* (existing matches UPDATE with final scores + prediction evaluation). Separate scopes, no double-write risk. Fix: (1) Restored `sport-engine-results-ingest.timer` (every 5 min) + `sport-engine-results-ingest.service`; (2) Fixed `app/services/ingestion.py` to also update `matches.status` from state file; (3) Backfill updated 22 matches.status from SCHEDULED to FINISHED; (4) `run_ingest.sh` correctly reads from `/opt/sport-prediction/current/engine/data/` and `/var/lib/sport-prediction/synced-reports/state/` (historical). |
+| Silent failure masking — engine scripts silenced errors with `\|\| true` | 2026-07-25 | All 4 engine scripts (`v31_results_noagent.sh`, `v31_prematch_noagent.sh`, `v31_eod_noagent.sh`, `v31_1010_noagent.sh`) had `\|\| true` which masked all exit codes. Additionally, `run_ingest.sh` had a broken pipe-to-filename bug (`LOGFILE="... 2>&1"` wrote literal "2>&1" to filename). Fix: removed all `\|\| true` instances; fixed `run_ingest.sh` log redirection; added `set -euo pipefail`. All scripts verified with proper exit codes. |
+| `eod.timer` and `watchdog.timer` missing boot-time trigger | 2026-07-25 | Both timers only had `OnUnitActiveSec=1800` (fires 30 min after service last-active), but no `OnBootSec` — meaning after host reboot, timers would not fire until 30 min after first service run. Fix: added `OnBootSec=60` to both timers. Removed stale `[Install]` section from `eod.timer`. Timers now fire at boot + recurring. |
 | Production DOWN — frontend returning `{"detail":"Not Found"}` (sports.bintangsofyan.com) | 2026-07-24 | Root cause: `current/frontend` symlink pointed to `/opt/sport-prediction/releases/sport-prediction-frontend-20250724/frontend` but no release ever contained a `frontend/` directory — `os.path.isdir()` was always False → the entire frontend-serving block was bypassed → FastAPI returned default 404. Also: `serve -s .` in `sport-prediction-frontend.service` served directory listing, not SPA. Fix: (1) `_FRONTEND_DIST` updated to `/opt/sport-prediction/current/frontend/dist` (correct path); (2) added explicit `@app.get("/")` route (empty path doesn't match `{full_path:path}`); (3) frontend built on Mac + deployed to LXC new release; (4) frontend service decommissioned (backend now serves SPA directly). Deploy script `/opt/sport-prediction/create_sport_release.sh` created to enforce complete releases. |
 | sed text-edit corrupted 2 Python scripts silently (SyntaxError in cron-alert + hourly-refresh) | 2026-07-24 | During cutover migration, `sed -i` replaced `/var/run/sportapp/` paths without preserving Python string quotes — `LOCK_FILE = /path` (no quotes) → `SyntaxError`. Both services failed for ~20h (cron-alert) and ~11h (hourly-refresh). Fix: Python script applied quotes restoration, duplicate imports removed. Prevention: `python3 -m py_compile` must run after every automated text edit to Python files. All 9 scripts verified clean. |
 | Release folder missing `frontend/dist` — production DOWN | 2026-07-24 | Pattern: every release was created by selectively rsyncing only the changed component, with no copy-forward of other components. `frontend/dist` was never included in any release. Fix: `/opt/sport-prediction/create_sport_release.sh` enforces copy-forward of ALL components from current release + pre-switch validation (checks `backend/`, `frontend/dist/index.html`, `engine/scripts/` exist). |
@@ -262,7 +269,7 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 | `sport-prediction-ingest.service` failed (exit 126/1) | 2026-07-23 | Permission issues: (1) `run_ingest.sh` missing execute bit for sportapp; (2) log dir `/opt/sport-prediction/logs` missing; (3) `tee` to log file permission denied. Fixed: chmod 755, mkdir logs, chmod 777 logs, sed `tee`→`tee -a "/dev/null"`. |
 | Match status chaos (12+ raw variants) | 2026-07-23 | Raw statuses like `P1`, `init`, `b`, `halftime` were stored directly without normalization. Added `MATCH_STATUS_MAP` (12→5 canonical: SCHEDULED/FINISHED/LIVE/POSTPONED/CANCELLED) + `_normalize_match_status()`. DB shows 893 SCHEDULED, 26 FINISHED, 4 LIVE, 1 POSTPONED — all canonical. |
 | "ESPN HTTP 404" misdiagnosis | 2026-07-23 | Initial diagnosis of "ESPN API down" was wrong. Root cause was two separate issues: (1) curl used `football/scoreboard` (no league qualifier) which doesn't exist on ESPN — actual league-qualified paths work fine; (2) hourly cron script had 60s timeout for a process needing 3+ min (enrichment bottleneck). Fix: hourly script timeout 60→300s, removed enrich from hourly runs. |
-| Hourly refresh script missing `--sport` filter + timeout too short | 2026-07-23 | `sports_v32_hourly_refresh.py` had 60s subprocess timeout, but enrichment takes ~3 min. Also ran without sport filter (all 15 leagues × 8 dates = 120 ESPN calls per sport). Fix: added `--sport football --sport basketball --sport tennis` filter + 300s timeout. |
+| Hourly refresh script missing `--sport` filter + timeout too short | 2026-07-23 | `sports_v32_hourly_refresh.py` had 60s subprocess timeout, but enrichment takes ~3 min. Also ran without sport filter (all 15 leagues × 8 dates = 120 ESPN calls per sport). Also ran without sport filter (all 15 leagues × 8 dates = 120 ESPN calls per sport). Fix: added `--sport football --sport basketball --sport tennis` filter + 300s timeout. |
 | Window scan only 48h instead of 7 days | 2026-07-23 | `sports_v31_espn_ingest.py` line 1231 had `window_end = window_start + timedelta(hours=48)`. Fixed to `timedelta(days=7)` to match spec. |
 | No hourly refresh job existed | 2026-07-23 | Spec requires refresh every hour. Created `sports_v32_hourly_refresh.py` — calls ingest for today+7days across 8× windows (12z-20z WIB). Registered as job `5e9a1c3f8b2d` with cron `0 * * * *`. |
 | Port 8101 decommissioned | 2026-07-23 | Two-service architecture (`serve -s` on 8101 + FastAPI on 8100) caused repeated out-of-sync bugs (bundle mismatch, restart forgotten). Consolidated to single port 8100. Cloudflare Tunnel and LAN access now both route to backend directly. |
