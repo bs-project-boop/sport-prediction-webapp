@@ -401,9 +401,18 @@ def validation_status_v32(ev: Dict[str, Any], actual_score: str, actual_winner: 
     outcome_ok = (aw == "draw" and (pred_outcome == "draw" or resolved == "draw")) or (aw != "draw" and ((pred_outcome and aw in pred_outcome) or (pred_outcome and pred_outcome in aw) or (resolved and aw in resolved) or (resolved and resolved in aw)))
     if not outcome_ok:
         return "SALAH"
+
+    sport = (ev.get("sport") or "").lower()
+
+    # MMA / combat sports: actual_score="WIN", no numeric scores.
+    # outcome_ok=True means winner was predicted correctly.
+    # For MMA, correct winner = BENAR directly.
+    if sport == "mma":
+        return "BENAR"
+
     ps = score_parts(pred_score)
     ac = score_parts(actual_score)
-    sport = (ev.get("sport") or "").lower()
+
     if not ps or not ac:
         return "SEBAGIAN BENAR"
     if sport == "football":
