@@ -246,9 +246,31 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 
 ## Facing Issues
 
-> Last updated: 2026-07-25 05:55 WIB
+> Last updated: 2026-07-25 17:35 WIB
 
-**⚠ No active issues** — all known issues resolved. See "Known Issues Resolved" below.
+**⚠ Active limitation:** ~764 overdue matches (FIBA youth/qualifier leagues) will NEVER auto-resolve — ESPN doesn't cover these competitions. See "Data Coverage Limitations" below for details.
+
+---
+
+## Data Coverage Limitations
+
+> ⚠️ **Realistic expectations for overdue match resolution**
+
+Of 911 past matches stuck at `SCHEDULED`, the breakdown by ESPN coverage is:
+
+| Category | Competitions | Count | Will Auto-Resolve? |
+|----------|-------------|-------|-------------------|
+| **ESPN-covered** | Wimbledon (tennis), MLS (football), FIFA World Cup 2026, MotoGP | **147** | ✅ YES — pipeline works |
+| **Not ESPN-covered** | FIBA U18/U20/U17 youth qualifiers, AmeriCup/EuroBasket pre-quals, eFIBA, FIBA Africa/Asia/Americas/WABA qualifiers | **764** | ❌ NO — provider doesn't cover these |
+
+**147 matches (16.1%)** will resolve automatically when those competitions are active and ESPN provides scores.
+
+**764 matches (83.9%) are permanently stuck** — the system cannot capture results for competitions not covered by ESPN. These require either:
+- A second data provider for youth/qualifier leagues, or
+- Manual result entry, or
+- Acceptance they will remain as historical records
+
+This is a **known limitation** (not a bug). The 30 matches that already have `actual_result` in DB (FIFA World Cup 2026 matches from July 8–20) prove the pipeline works correctly for ESPN-covered sports.
 
 ---
 
@@ -257,7 +279,8 @@ Config file: `/etc/sport-prediction/app.env` (owned by `sportapp:sportapp`, mode
 | Issue | Date Resolved | Root Cause + Fix |
 |-------|---------------|------------------|
 | Ingestion results pipeline gap — 933 past matches stuck at SCHEDULED despite actual_result in `prediction_results` | 2026-07-25 | Root cause: `sport-engine-results-ingest.timer` was mistakenly deleted 2026-07-24 (thought to be redundant with daily-scan). Actually, daily-scan handles *discovery* (new matches/predictions INSERT), while results-ingest handles *results* (existing matches UPDATE with final scores + prediction evaluation). Separate scopes, no double-write risk. Fix: (1) Restored `sport-engine-results-ingest.timer` (every 5 min) + `sport-engine-results-ingest.service`; (2) Fixed `app/services/ingestion.py` to also update `matches.status` from state file; (3) Backfill updated 22 matches.status from SCHEDULED to FINISHED; (4) `run_ingest.sh` correctly reads from `/opt/sport-prediction/current/engine/data/` and `/var/lib/sport-prediction/synced-reports/state/` (historical). |
-| Silent failure masking — engine scripts silenced errors with `\|\| true` | 2026-07-25 | All 4 engine scripts (`v31_results_noagent.sh`, `v31_prematch_noagent.sh`, `v31_eod_noagent.sh`, `v31_1010_noagent.sh`) had `\|\| true` which masked all exit codes. Additionally, `run_ingest.sh` had a broken pipe-to-filename bug (`LOGFILE="... 2>&1"` wrote literal "2>&1" to filename). Fix: removed all `\|\| true` instances; fixed `run_ingest.sh` log redirection; added `set -euo pipefail`. All scripts verified with proper exit codes. |
+| Silent failure masking — engine scripts silenced errors with `|| true` | 2026-07-25 | 5 instances across 4 scripts: `v31_results_noagent.sh` (line 9), `v31_prematch_noagent.sh` (line 9), `v31_eod_noagent.sh` (lines 8+10), `v31_1010_noagent.sh` (line 7 inside `OUT=$(...)` subshell — masks only the assignment, not script exit). Fix: removed all top-level `|| true` instances; fixed `run_ingest.sh` log redirection (`LOGFILE="..." 2>&1` → `>> $LOGFILE 2>&1`); added `set -euo pipefail`. All scripts verified with proper exit codes. |
+| `v31_results_ingest.sh` wrong venv path — timer silently failed | 2026-07-25 | Timer `sport-engine-results-ingest.timer` was firing every 5 min but producing NO data because the script had wrong path (`$ENGINE/backend/venv` → `/opt/sport-prediction/current/engine/backend/venv` which doesn't exist) AND used lock wrapper with duplicate python args AND didn't `cd` to backend directory. Fix: hardcoded `VENV_PYTHON="/opt/sport-prediction/current/backend/venv/bin/python"`, `cd /opt/sport-prediction/current/backend`, `exec "$VENV_PYTHON"`. Timer now verified working with journalctl output showing `files_seen=23 files_ingested=1 records_written=0`. |
 | `eod.timer` and `watchdog.timer` missing boot-time trigger | 2026-07-25 | Both timers only had `OnUnitActiveSec=1800` (fires 30 min after service last-active), but no `OnBootSec` — meaning after host reboot, timers would not fire until 30 min after first service run. Fix: added `OnBootSec=60` to both timers. Removed stale `[Install]` section from `eod.timer`. Timers now fire at boot + recurring. |
 | Production DOWN — frontend returning `{"detail":"Not Found"}` (sports.bintangsofyan.com) | 2026-07-24 | Root cause: `current/frontend` symlink pointed to `/opt/sport-prediction/releases/sport-prediction-frontend-20250724/frontend` but no release ever contained a `frontend/` directory — `os.path.isdir()` was always False → the entire frontend-serving block was bypassed → FastAPI returned default 404. Also: `serve -s .` in `sport-prediction-frontend.service` served directory listing, not SPA. Fix: (1) `_FRONTEND_DIST` updated to `/opt/sport-prediction/current/frontend/dist` (correct path); (2) added explicit `@app.get("/")` route (empty path doesn't match `{full_path:path}`); (3) frontend built on Mac + deployed to LXC new release; (4) frontend service decommissioned (backend now serves SPA directly). Deploy script `/opt/sport-prediction/create_sport_release.sh` created to enforce complete releases. |
 | sed text-edit corrupted 2 Python scripts silently (SyntaxError in cron-alert + hourly-refresh) | 2026-07-24 | During cutover migration, `sed -i` replaced `/var/run/sportapp/` paths without preserving Python string quotes — `LOCK_FILE = /path` (no quotes) → `SyntaxError`. Both services failed for ~20h (cron-alert) and ~11h (hourly-refresh). Fix: Python script applied quotes restoration, duplicate imports removed. Prevention: `python3 -m py_compile` must run after every automated text edit to Python files. All 9 scripts verified clean. |
