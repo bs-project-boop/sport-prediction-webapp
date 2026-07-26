@@ -112,10 +112,6 @@ def upgrade() -> None:
     )
     op.create_index("ix_calibration_history_sport", "calibration_history", ["sport"])
     op.create_index("ix_calibration_history_run_at", "calibration_history", ["run_at_wib"])
-    op.create_index(
-        "ix_calibration_history_needs_recal", "calibration_history", ["sport"],
-        postgresql_where=sa.text("needs_recalibration = true")
-    )
 
     # ── 4. weight_adjustments ─────────────────────────────────────────────────
     op.create_table(
@@ -130,16 +126,21 @@ def upgrade() -> None:
         sa.Column("trigger_detail", postgresql.JSONB(), nullable=True),
         sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("approved_by", sa.Text(), nullable=True),  # 'system'|'user:{user_id}'
-        sa.Column("status", sa.Text(), nullable=False, server_default="'applied'"),  # 'applied'|'pending_approval'|'rejected'|'rolled_back'
+        sa.Column("status", sa.Text(), nullable=False, server_default=sa.text("'applied'")),  # 'applied'|'pending_approval'|'rejected'|'rolled_back'
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.Column("applied_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),  # NULL=permanent
-        # Partial unique: one applied adjustment per sport/factor
-        sa.UniqueConstraint("sport", "factor", "status", name="uq_weight_adjustments_sport_factor_status",
-                            postgresql_where=sa.text("status = 'applied'")),
+        # Partial uniqueness is implemented as a PostgreSQL partial unique index below.
     )
     op.create_index("ix_weight_adjustments_sport", "weight_adjustments", ["sport"])
     op.create_index("ix_weight_adjustments_status", "weight_adjustments", ["status"])
+    op.create_index(
+        "uq_weight_adjustments_sport_factor_status",
+        "weight_adjustments",
+        ["sport", "factor"],
+        unique=True,
+        postgresql_where=sa.text("status = 'applied'"),
+    )
 
     # ── 5. notification_audit ─────────────────────────────────────────────────
     op.create_table(
