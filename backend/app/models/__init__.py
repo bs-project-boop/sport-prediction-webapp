@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 from enum import Enum as PyEnum
+from typing import Annotated, Any
 
-from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, ForeignKey, Integer, JSON, Numeric, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, ForeignKey, Integer, JSON, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import ARRAY as SQLArray
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -22,14 +24,16 @@ class Match(Base):
     team_a: Mapped[str | None] = mapped_column(Text, nullable=True)
     team_b: Mapped[str | None] = mapped_column(Text, nullable=True)
     kickoff_wib: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    venue: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(Text, default="scheduled")
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     competition_level: Mapped[str] = mapped_column(Text, default="senior")
     report_label: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
     raw_document: Mapped[dict] = mapped_column(JSON, default=dict)
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    # Relationships to new M2 tables
+    matrix_analysis: Mapped[list["MatrixAnalysis"]] = relationship("MatrixAnalysis", back_populates="match", foreign_keys="MatrixAnalysis.match_id")
+    win_reasoning: Mapped[list["WinReasoning"]] = relationship("WinReasoning", back_populates="match", foreign_keys="WinReasoning.match_id")
 
 
 class Prediction(Base):
@@ -132,4 +136,105 @@ class PipelineJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-__all__ = ["Base", "Match", "Prediction", "PredictionResult", "ValidationStatus", "IngestionAudit", "AuthSession", "PipelineJob"]
+class MatrixAnalysis(Base):
+    __tablename__ = "matrix_analysis"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(Text, unique=True)
+    sport: Mapped[str] = mapped_column(Text)
+    # Player/team condition
+    home_injuries: Mapped[list] = mapped_column(JSON, default=list)
+    away_injuries: Mapped[list] = mapped_column(JSON, default=list)
+    home_suspensions: Mapped[list] = mapped_column(JSON, default=list)
+    away_suspensions: Mapped[list] = mapped_column(JSON, default=list)
+    lineup_notes: Mapped[list] = mapped_column(JSON, default=list)
+    # Form
+    home_form_last5: Mapped[list] = mapped_column(JSON, default=list)
+    away_form_last5: Mapped[list] = mapped_column(JSON, default=list)
+    # H2H
+    h2h_results: Mapped[list] = mapped_column(JSON, default=list)
+    # Strategy/Tactics
+    tactical_notes: Mapped[list] = mapped_column(JSON, default=list)
+    motivational: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Contextual
+    venue_weather: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    schedule_fatigue: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Market/Odds
+    market_odds: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    polymarket_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Composite quality signal
+    evidence_quality_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sources_used: Mapped[list] = mapped_column(JSON, default=list)
+    data_source_degraded: Mapped[bool] = mapped_column(Boolean, default=False)
+    research_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    match: Mapped["Match"] = relationship("Match", back_populates="matrix_analysis", foreign_keys="MatrixAnalysis.match_id")
+
+
+class WinReasoning(Base):
+    __tablename__ = "win_reasoning"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(Text, unique=True)
+    winner: Mapped[str] = mapped_column(Text)
+    winning_factors: Mapped[list] = mapped_column(JSON, default=list)
+    losing_factors: Mapped[list] = mapped_column(JSON, default=list)
+    narrative: Mapped[str] = mapped_column(Text)
+    key_moment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tactical_winner: Mapped[str | None] = mapped_column(Text, nullable=True)  # 'home'|'away'|'neutral'
+    factors_missed_by_prediction: Mapped[list] = mapped_column(JSON, default=list)
+    pattern_tags: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    match: Mapped["Match"] = relationship("Match", back_populates="win_reasoning", foreign_keys="WinReasoning.match_id")
+
+
+class CalibrationHistory(Base):
+    __tablename__ = "calibration_history"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_at_wib: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sport: Mapped[str] = mapped_column(Text)
+    bucket: Mapped[str] = mapped_column(Text)  # 'HIGH'|'MEDIUM'|'LOW'|'COIN_FLIP'
+    matches_in_bucket: Mapped[int] = mapped_column(Integer, default=0)
+    mean_confidence_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    actual_accuracy_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    calibration_error_pp: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    direction: Mapped[str | None] = mapped_column(Text, nullable=True)  # 'over_confident'|'under_confident'
+    needs_recalibration: Mapped[bool] = mapped_column(Boolean, default=False)
+    suggested_adjustment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    bucket_distribution: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class WeightAdjustment(Base):
+    __tablename__ = "weight_adjustments"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sport: Mapped[str] = mapped_column(Text)
+    factor: Mapped[str] = mapped_column(Text)  # 'form'|'h2h'|'player_condition'|etc.
+    delta_weight: Mapped[float] = mapped_column(Numeric(4, 3))
+    direction: Mapped[str] = mapped_column(Text)  # 'increase'|'decrease'
+    triggered_by: Mapped[str] = mapped_column(Text)  # 'pattern_tag'|'calibration_suggestion'|'manual'
+    trigger_detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_by: Mapped[str | None] = mapped_column(Text, nullable=True)  # 'system'|'user:{user_id}'
+    status: Mapped[str] = mapped_column(Text, default="applied")  # 'applied'|'pending_approval'|'rejected'|'rolled_back'
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # NULL=permanent
+
+
+class NotificationAudit(Base):
+    __tablename__ = "notification_audit"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    idempotency_key: Mapped[str] = mapped_column(Text, unique=True)
+    channel: Mapped[str] = mapped_column(Text)  # 'discord'|'email'
+    match_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    subject: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recipient: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(Text)  # 'sent'|'deduped'|'failed'
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    payload_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+__all__ = ["Base", "Match", "Prediction", "PredictionResult", "ValidationStatus", "IngestionAudit", "AuthSession", "PipelineJob", "MatrixAnalysis", "WinReasoning", "CalibrationHistory", "WeightAdjustment", "NotificationAudit"]
