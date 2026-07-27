@@ -1,0 +1,22 @@
+[Unit]
+Description=Sport Prediction Pipeline Workers (Stage 2 scaffold)
+After=network.target postgresql.service sport-prediction-backend.service
+
+[Service]
+Type=simple
+User=sportapp
+Group=sportapp
+WorkingDirectory=/opt/sport-prediction/current/backend
+EnvironmentFile=/etc/sport-prediction/app.env
+ExecStart=/opt/sport-prediction/current/backend/venv/bin/python -m app.workers.stage2_worker
+Restart=on-failure
+RestartSec=10
+# WatchdogSec intentionally omitted until sd_notify check-in is implemented.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sport-prediction /var/log/sport-prediction
+StandardOutput=append:/var/log/sport-prediction/stage2-worker.log
+StandardError=append:/var/log/sport-prediction/stage2-worker-error.log
+
+[Install]
+WantedBy=multi-user.target
