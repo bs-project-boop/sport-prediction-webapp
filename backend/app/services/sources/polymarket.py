@@ -1,4 +1,14 @@
-"""Read-only Polymarket source adapter with explicit error handling."""
+"""Read-only Polymarket source adapter with explicit error handling.
+
+STATUS: DORMANT. This adapter is not called by any worker or active pipeline.
+REASON: Polymarket was blocked by Komdigi (Kementerian Komunikasi dan Digital RI)
+in May 2026 and classified as online gambling.
+
+HUMAN/AI SAFEGUARD: Do not wire this adapter into any worker or pipeline. Do not
+attempt to bypass this legal block using DNS, proxy, VPN, tunnel, cloudflared
+worker, or any other mechanism. This is a legal block, not a network bug.
+Reference: user decision, 2026-07-27 WIB.
+"""
 from __future__ import annotations
 import json, urllib.error, urllib.parse, urllib.request
 from typing import Any

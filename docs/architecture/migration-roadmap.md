@@ -79,11 +79,14 @@ python3 sports_v31_espn_ingest.py --date 2026-07-25
 
 **Tujuan:** Port research/data gathering logic — deep research dari SearXNG, Polymarket, form analysis
 
+> **Polymarket status:** DORMANT — diblokir Komdigi RI (Mei 2026), dikategorikan judi online. Adapter tidak boleh di-wire ke worker/pipeline dan tidak boleh di-bypass; lihat README Data Coverage Limitations.
+
 **Estimasi:** High | **Risiko:** High (banyak external dependencies)
 
 ### Cakupan
 - [ ] Port SearXNG scanner (`sports_v31_searxng_scanner.py`) → `app/services/sources/searxng.py`
 - [ ] Port Polymarket integration (`polymarket.py`) → `app/services/sources/polymarket.py`
+  - **DORMANT — diblokir Komdigi RI (Mei 2026); tidak boleh dipanggil worker/pipeline.**
 - [ ] Implementasi per-sport evidence gathering:
   - Football: form (last 5-10 matches), H2H, injuries, home/away record
   - Tennis: player form, H2H, surface record, recent tournament performance
@@ -98,6 +101,7 @@ python3 sports_v31_espn_ingest.py --date 2026-07-25
 ### Validasi
 - [ ] Matrix analysis untuk 10 matches dibanding manual research — evidence completeness ≥ 80%
 - [ ] Polymarket odds correctly fetched dan stored untuk ≥ 70% football/tennis matches
+  - **DORMANT — validasi ini tidak aktif; `market_odds` tetap kosong/null dan tidak ada rencana bypass.**
 - [ ] DATA_SOURCE_DEGRADED correctly triggered when SearXNG returns < 3 results
 
 ---
@@ -426,7 +430,7 @@ M1 ──┬── M2 ──┬── M3 ──┬── M4 ──┬── M5
 
 1. **Legacy JSON artifacts** — setelah cutover, apakah `/Users/beem/.hermes-shared/reports/sports/v3/` tetap disimpan? Untuk berapa lama? Jawaban: Keep 90 days for forensic, then archive to cold storage.
 
-2. **Polymarket API changes** — Polymarket tidak guarantee API stability. Jika API berubah, apakah fallback ke manual odds research? Jawaban: Polymarket failure = DATA_SOURCE_DEGRADED + -15 penalty, bukan blocker.
+2. **Polymarket API changes** — Polymarket tidak guarantee API stability. Jika API berubah, apakah fallback ke manual odds research? Jawaban historis: Polymarket failure = DATA_SOURCE_DEGRADED + -15 penalty, bukan blocker. **Status keputusan terbaru: DORMANT — diblokir Komdigi RI (Mei 2026), bukan technical failure; jangan wire atau bypass. Lihat README Data Coverage Limitations.**
 
 3. **Win reasoning automation** — Apakah win reasoning fully automated (structured extraction dari data sources) atau semi-automated (model generates, human approves)? Jawaban: Fully automated untuk M4, dengan structured template untuk konsistensi.
 

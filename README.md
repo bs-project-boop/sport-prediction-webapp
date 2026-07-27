@@ -279,6 +279,7 @@ This is a **known limitation** (not a bug). The 30 matches that already have `ac
 | **MMA (UFC)** | `mma/ufc` scoreboard | ✅ Active — added 2026-07-26 | Fighter vs fighter format. Results: "WIN" for winner. Falls back to generic `espn_scoreboard_for_event` path with `winner` flag. |
 | **Boxing** | `boxing/scoreboard` | ❌ No coverage (HTTP 404) | ESPN does not expose Boxing schedule via its public scoreboard API. No free-tier alternative confirmed. Boxing coverage is a documented gap — no scraping of promoter sites per policy. |
 | Football, Basketball, Tennis, MotoGP, NFL | Various | ✅ Active | Existing coverage unchanged. |
+| **Polymarket** | Market odds evidence for Matrix Analysis | ❌ Tidak tersedia — diblokir Komdigi RI (Mei 2026), dikategorikan sebagai judi online | `market_odds` di `matrix_analysis` kosong/null untuk evidence gathering. Tidak ada rencana bypass. Adapter tetap ada di repo dalam status dormant untuk referensi jika status berubah. |
 
 ---
 
