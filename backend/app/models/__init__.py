@@ -139,7 +139,7 @@ class PipelineJob(Base):
 class MatrixAnalysis(Base):
     __tablename__ = "matrix_analysis"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(Text, unique=True)
+    match_id: Mapped[str] = mapped_column(ForeignKey("matches.match_id", ondelete="CASCADE"), unique=True)
     sport: Mapped[str] = mapped_column(Text)
     # Player/team condition
     home_injuries: Mapped[list] = mapped_column(JSON, default=list)
@@ -175,7 +175,7 @@ class MatrixAnalysis(Base):
 class WinReasoning(Base):
     __tablename__ = "win_reasoning"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    match_id: Mapped[str] = mapped_column(Text, unique=True)
+    match_id: Mapped[str] = mapped_column(ForeignKey("matches.match_id", ondelete="CASCADE"), unique=True)
     winner: Mapped[str] = mapped_column(Text)
     winning_factors: Mapped[list] = mapped_column(JSON, default=list)
     losing_factors: Mapped[list] = mapped_column(JSON, default=list)
