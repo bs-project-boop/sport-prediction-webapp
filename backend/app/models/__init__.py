@@ -163,7 +163,7 @@ class MatrixAnalysis(Base):
     polymarket_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Composite quality signal
     evidence_quality_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    sources_used: Mapped[list] = mapped_column(JSON, default=list)
+    sources_used: Mapped[list] = mapped_column(JSON().with_variant(SQLArray(Text), "postgresql"), default=list)
     data_source_degraded: Mapped[bool] = mapped_column(Boolean, default=False)
     research_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
