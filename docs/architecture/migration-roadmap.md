@@ -407,6 +407,10 @@ M8 (Cutover) tidak boleh dimulai sebelum:
 
 ---
 
+## Open Items / Backlog
+
+- Tambahkan audit/history table untuk `predictions` — ditemukan saat M3 bahwa tidak ada cara membuktikan/restore state row predictions sebelum modifikasi (tidak ada trigger/log perubahan). Prioritas sebelum production traffic M3 bertambah banyak.
+
 ## Dependencies
 
 ```
