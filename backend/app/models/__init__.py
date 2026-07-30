@@ -24,6 +24,8 @@ class Match(Base):
     team_a: Mapped[str | None] = mapped_column(Text, nullable=True)
     team_b: Mapped[str | None] = mapped_column(Text, nullable=True)
     kickoff_wib: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    venue: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(Text, default="scheduled", nullable=False)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     competition_level: Mapped[str] = mapped_column(Text, default="senior")
