@@ -1,5 +1,5 @@
 [Unit]
-Description=Run Stage 1 Discovery at 00:00 WIB daily (Asia/Jakarta = UTC+7)
+Description=Run Stage 1 Discovery at 00:15 WIB daily (Asia/Jakarta = UTC+7)
 
 [Timer]
 # Stage 1 Discovery is a daily batch job, not a polling loop.
@@ -7,7 +7,7 @@ Description=Run Stage 1 Discovery at 00:00 WIB daily (Asia/Jakarta = UTC+7)
 # patterned on the ingest timer which DOES need interval polling (it tails a
 # constantly-updated report directory). Discovery has no such trigger; it
 # fetches a fixed UTC bucket window per day, so OnCalendar is correct.
-OnCalendar=*-*-* 00:00:00 Asia/Jakarta
+OnCalendar=*-*-* 00:15:00 Asia/Jakarta
 Persistent=true
 
 [Install]
