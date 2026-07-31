@@ -261,7 +261,7 @@ app, _engine, _SessionLocal = create_app(
 # ── Backend serves its own frontend for external/cloudflare access ────────────
 # This lets Cloudflare tunnel target ONE port (8100) for both API + frontend,
 # eliminating the need for Caddy or any other reverse proxy.
-_FRONTEND_DIST = "/opt/sport-prediction/current/frontend"
+_FRONTEND_DIST = "/opt/sport-prediction/current/frontend/dist"
 if os.path.isdir(_FRONTEND_DIST):
     # StaticFiles for /assets/* — no explicit Cache-Control so ETag/Last-Modified
     # negotiation works naturally. These files have content-hash names so safe to
